@@ -1,0 +1,72 @@
+/* VoiceRefine. CK42X brand tokens.
+ * Single source of truth. Drop into any web surface that needs the brand.
+ * Keep this file in sync with branding/BRAND.md.
+ */
+
+:root {
+  /* Surface */
+  --vr-bg:      #0b0b0c; /* matte black */
+  --vr-fg:      #e9e9ea; /* off-white */
+  --vr-muted:   #151517; /* cards / surfaces */
+  --vr-border:  #222326; /* hairline */
+  --vr-subtle:  #a2a3a8; /* secondary text */
+
+  /* Accent (one) */
+  --vr-accent:     #ffb300; /* CK42X amber, canon */
+  --vr-accent-ink: #0b0b0c; /* always pair amber on this */
+
+  /* Operational state (semantic, scoped to live UI feedback only) */
+  --vr-recording:  #e94560; /* pressed, capturing audio */
+  --vr-thinking:   #ffb300; /* polishing, identical to accent on purpose */
+  --vr-done:       #4ecca3; /* polished text on clipboard */
+  --vr-error:      #ff6b6b; /* transcription or API failure */
+
+  /* Geometry */
+  --vr-radius: 14px;
+  --vr-hairline: 1px;
+
+  /* Motion */
+  --vr-ease: cubic-bezier(.2, .8, .2, 1);
+  --vr-dur:  180ms;
+
+  /* Shadow (softer, no glow) */
+  --vr-shadow-1: 0 8px 24px rgba(0, 0, 0, .35);
+
+  /* Type */
+  --vr-font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  --vr-font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+  --vr-track-tight: -0.02em; /* headings */
+}
+
+/* Convenience helpers */
+.vr-card {
+  background: var(--vr-muted);
+  border: var(--vr-hairline) solid var(--vr-border);
+  border-radius: var(--vr-radius);
+}
+
+.vr-eyebrow {
+  font-family: var(--vr-font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vr-subtle);
+}
+
+.vr-button {
+  background: var(--vr-accent);
+  color: var(--vr-accent-ink);
+  border: 0;
+  border-radius: var(--vr-radius);
+  padding: 0.6rem 1rem;
+  font-family: var(--vr-font-sans);
+  font-weight: 600;
+  transition: transform var(--vr-dur) var(--vr-ease),
+              box-shadow var(--vr-dur) var(--vr-ease);
+}
+
+.vr-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--vr-shadow-1);
+}

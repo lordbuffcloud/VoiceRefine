@@ -1,0 +1,7 @@
+openai>=1.0.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+pyperclip>=1.8.2
+pynput>=1.7.6
+mcp>=1.0.0
+websockets>=12.0

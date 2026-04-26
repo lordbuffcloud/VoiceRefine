@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 64" role="img" aria-label="VoiceRefine wordmark">
+  <title>VoiceRefine</title>
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Geist:wght@500;700;800&amp;display=swap');
+      .vr-word {
+        font-family: "Geist", "Inter", system-ui, sans-serif;
+        font-weight: 800;
+        font-size: 40px;
+        letter-spacing: -0.02em;
+      }
+      .vr-voice  { fill: #e9e9ea; }
+      .vr-refine { fill: #ffb300; }
+    </style>
+  </defs>
+  <text x="0" y="44" class="vr-word">
+    <tspan class="vr-voice">Voice</tspan><tspan class="vr-refine">Refine</tspan>
+  </text>
+</svg>

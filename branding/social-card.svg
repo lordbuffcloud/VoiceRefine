@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="VoiceRefine social card">
+  <title>VoiceRefine. Press to talk. Paste polished.</title>
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Geist:wght@500;700;800&amp;family=Geist+Mono:wght@500&amp;display=swap');
+      .sc-eyebrow {
+        font-family: "Geist Mono", "JetBrains Mono", monospace;
+        font-weight: 500;
+        font-size: 22px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        fill: #a2a3a8;
+      }
+      .sc-headline {
+        font-family: "Geist", "Inter", system-ui, sans-serif;
+        font-weight: 800;
+        font-size: 96px;
+        letter-spacing: -0.02em;
+      }
+      .sc-headline-fg     { fill: #e9e9ea; }
+      .sc-headline-accent { fill: #ffb300; }
+      .sc-tagline {
+        font-family: "Geist", "Inter", system-ui, sans-serif;
+        font-weight: 500;
+        font-size: 32px;
+        letter-spacing: -0.01em;
+        fill: #a2a3a8;
+      }
+    </style>
+  </defs>
+
+  <!-- Ink background -->
+  <rect width="1200" height="630" fill="#0b0b0c"/>
+
+  <!-- Hairline border, brand-canon -->
+  <rect x="0.5" y="0.5" width="1199" height="629" fill="none" stroke="#222326" stroke-width="1"/>
+
+  <!-- Mark, top-left, scaled 4x from 64-grid -->
+  <g transform="translate(96,96) scale(4)">
+    <polygon
+      points="32,4 56.25,18 56.25,46 32,60 7.75,46 7.75,18"
+      fill="none"
+      stroke="#ffb300"
+      stroke-width="2"
+      stroke-linejoin="round"/>
+    <rect x="20" y="25" width="3" height="14" rx="1.5" fill="#ffb300"/>
+    <rect x="28" y="21" width="3" height="22" rx="1.5" fill="#ffb300"/>
+    <rect x="36" y="27" width="3" height="10" rx="1.5" fill="#ffb300"/>
+    <circle cx="46" cy="32" r="3" fill="#ffb300"/>
+  </g>
+
+  <!-- Eyebrow -->
+  <text x="96" y="406" class="sc-eyebrow">CK42X / VOICEREFINE</text>
+
+  <!-- Headline (wordmark style) -->
+  <text x="96" y="496" class="sc-headline">
+    <tspan class="sc-headline-fg">Voice</tspan><tspan class="sc-headline-accent">Refine</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text x="96" y="554" class="sc-tagline">Press to talk. Paste polished.</text>
+</svg>

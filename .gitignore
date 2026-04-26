@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# App runtime files
+config.json
+history.json
+voicerefine.log
+voicerefine_crash.log
+
+# Logs / scratch
+*.log
+err.txt
+err2.txt
+out.txt
+out2.txt
+stderr.log
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

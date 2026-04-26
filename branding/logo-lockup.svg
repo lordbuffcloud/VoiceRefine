@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 64" role="img" aria-label="VoiceRefine logo lockup">
+  <title>VoiceRefine</title>
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Geist:wght@500;700;800&amp;display=swap');
+      .vr-word {
+        font-family: "Geist", "Inter", system-ui, sans-serif;
+        font-weight: 800;
+        font-size: 44px;
+        letter-spacing: -0.02em;
+      }
+      .vr-voice  { fill: #e9e9ea; }
+      .vr-refine { fill: #ffb300; }
+    </style>
+  </defs>
+
+  <!-- Mark scaled 0.875 to balance optical mass against the 44px wordmark cap-height. -->
+  <g transform="translate(2,4) scale(0.875)">
+    <polygon
+      points="32,4 56.25,18 56.25,46 32,60 7.75,46 7.75,18"
+      fill="none"
+      stroke="#ffb300"
+      stroke-width="2.3"
+      stroke-linejoin="round"/>
+    <rect x="20" y="25" width="3" height="14" rx="1.5" fill="#ffb300"/>
+    <rect x="28" y="21" width="3" height="22" rx="1.5" fill="#ffb300"/>
+    <rect x="36" y="27" width="3" height="10" rx="1.5" fill="#ffb300"/>
+    <circle cx="46" cy="32" r="3" fill="#ffb300"/>
+  </g>
+
+  <!-- Wordmark: 24px gap right of mark, baseline aligned to mark vertical center. -->
+  <text x="80" y="46" class="vr-word">
+    <tspan class="vr-voice">Voice</tspan><tspan class="vr-refine">Refine</tspan>
+  </text>
+</svg>
