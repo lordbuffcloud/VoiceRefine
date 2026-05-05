@@ -5,7 +5,7 @@ a = Analysis(
     ['voicerefine.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('branding\\app-icon.ico', 'branding')],
     hiddenimports=['voicerefine_mcp'],
     hookspath=[],
     hooksconfig={},

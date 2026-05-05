@@ -11,7 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CK42X/VoiceRefine/releases">Download</a>
+  <a href="https://ck42x.com/tools/voicerefine">Download</a>
+  &nbsp;|&nbsp;
+  <a href="https://ck42x.com">CK42X</a>
   &nbsp;|&nbsp;
   <a href="#mcp-integration">MCP</a>
   &nbsp;|&nbsp;
@@ -42,14 +44,14 @@
 **Requirements:** Python 3.10+, an OpenAI API key.
 
 ```bash
-git clone https://github.com/CK42X/VoiceRefine.git
+git clone https://github.com/lordbuffcloud/VoiceRefine.git
 cd VoiceRefine
 pip install -r requirements.txt
 ```
 
 **Windows users:** if `sounddevice` fails to install, you may need the Microsoft C++ Build Tools.
 
-On first run you will be prompted to enter your OpenAI API key in the Settings window.
+On first run VoiceRefine opens a guided setup window. Paste your OpenAI API key once, save, and the app starts cleanly. The key stays local in `config.json`; you can also set `OPENAI_API_KEY` instead.
 
 ---
 
@@ -88,6 +90,7 @@ python voicerefine.py --settings
 Tabs: **API** (key, GPT model, Whisper model), **Prompt** (system prompt + presets), **Hotkey**, **Appearance** (overlay, theme).
 
 Settings are saved to `config.json` next to the executable.
+The app also links back to [CK42X](https://ck42x.com) from Settings, History, and the tray menu.
 
 ### Flags
 

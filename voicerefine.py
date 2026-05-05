@@ -12,7 +12,7 @@ def crash_handler(exc_type, exc_value, exc_tb):
     sys.__excepthook__(exc_type, exc_value, exc_tb)
 sys.excepthook = crash_handler
 
-import json, io, wave, threading, time, datetime
+import json, io, wave, threading, time, datetime, webbrowser
 from pathlib import Path
 import numpy as np
 import sounddevice as sd
@@ -26,11 +26,21 @@ try:
 except ImportError:
     HAS_TK = False
 
-_BASE = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
-CONFIG_PATH = _BASE / "config.json"
-HISTORY_PATH = _BASE / "history.json"
-DEFAULT_CONFIG = {"openai_api_key":"","model":"gpt-4o-mini","whisper_model":"whisper-1","hotkey":"<cmd>+<alt>","prompt":"You are a writing assistant. Take the following transcribed speech and improve it: fix grammar, punctuation, and spelling errors. Make it clear and well-structured while preserving the speaker's original meaning and tone. If the text is a quick message, keep it casual. If it's more formal, match that register. Do not add information that wasn't in the original. Return only the improved text, nothing else.","sample_rate":16000,"show_overlay":True,"overlay_position":"bottom-right","overlay_duration":3,"auto_paste":False,"play_sounds":True,"theme":"dark","max_history":100}
-THEMES = {"dark":{"bg":"#0b0b0c","fg":"#e9e9ea","accent":"#ffb300","accent2":"#e94560","success":"#4ecca3","recording":"#e94560","thinking":"#ffb300","done":"#4ecca3","error":"#ff6b6b","panel":"#151517","border":"#222326","input_bg":"#151517","input_fg":"#e9e9ea","button":"#ffb300","button_fg":"#0b0b0c","subtle":"#a2a3a8"},"light":{"bg":"#f5f5f5","fg":"#1a1a1a","accent":"#d49100","accent2":"#c0392b","success":"#27ae60","recording":"#c0392b","thinking":"#d49100","done":"#27ae60","error":"#e74c3c","panel":"#ffffff","border":"#e2e2e3","input_bg":"#ffffff","input_fg":"#1a1a1a","button":"#d49100","button_fg":"#ffffff","subtle":"#6c6d72"}}
+if getattr(sys, 'frozen', False):
+    _RESOURCE_BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    _CONFIG_BASE = Path(sys.executable).parent
+else:
+    _RESOURCE_BASE = Path(__file__).parent
+    _CONFIG_BASE = _RESOURCE_BASE
+CONFIG_PATH = _CONFIG_BASE / "config.json"
+HISTORY_PATH = _CONFIG_BASE / "history.json"
+APP_NAME = "VoiceRefine"
+APP_VERSION = "2.1"
+CK42X_URL = "https://ck42x.com"
+OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
+APP_ICON_PATH = _RESOURCE_BASE / "branding" / "app-icon.ico"
+DEFAULT_CONFIG = {"openai_api_key":"","model":"gpt-4o-mini","whisper_model":"whisper-1","hotkey":"<cmd>+<alt>","prompt":"You are a writing assistant. Take the following transcribed speech and improve it: fix grammar, punctuation, and spelling errors. Make it clear and well-structured while preserving the speaker's original meaning and tone. If the text is a quick message, keep it casual. If it's more formal, match that register. Do not add information that wasn't in the original. Return only the improved text, nothing else.","sample_rate":16000,"show_overlay":True,"overlay_position":"bottom-right","overlay_duration":3,"window_opacity":0.96,"auto_paste":False,"play_sounds":True,"theme":"dark","max_history":100}
+THEMES = {"dark":{"bg":"#0b0b0c","fg":"#e9e9ea","accent":"#ffb300","accent2":"#e94560","success":"#4ecca3","recording":"#e94560","thinking":"#ffb300","done":"#4ecca3","error":"#ff6b6b","panel":"#151517","panel2":"#101012","border":"#2a2b30","input_bg":"#101012","input_fg":"#e9e9ea","button":"#ffb300","button_fg":"#0b0b0c","subtle":"#a2a3a8"},"light":{"bg":"#f5f5f5","fg":"#1a1a1a","accent":"#d49100","accent2":"#c0392b","success":"#27ae60","recording":"#c0392b","thinking":"#d49100","done":"#27ae60","error":"#e74c3c","panel":"#ffffff","panel2":"#f0f0f1","border":"#d8d8dc","input_bg":"#ffffff","input_fg":"#1a1a1a","button":"#d49100","button_fg":"#ffffff","subtle":"#6c6d72"}}
 
 def load_config():
     if CONFIG_PATH.exists():
@@ -48,6 +58,30 @@ def load_history():
 
 def save_history(history):
     with open(HISTORY_PATH,"w") as f: json.dump(history,f,indent=2,ensure_ascii=False)
+
+def has_api_key(config):
+    return bool((config.get("openai_api_key","") or os.environ.get("OPENAI_API_KEY","")).strip())
+
+def open_url(url):
+    try: webbrowser.open_new_tab(url)
+    except Exception as e: print(f"  Could not open {url}: {e}")
+
+def apply_window_chrome(root,theme,alpha=0.96):
+    root.configure(bg=theme["bg"])
+    if APP_ICON_PATH.exists():
+        try: root.iconbitmap(str(APP_ICON_PATH))
+        except Exception: pass
+    try: root.attributes("-alpha",alpha)
+    except Exception: pass
+
+def load_icon_photo(size=42):
+    if not HAS_TK or not APP_ICON_PATH.exists(): return None
+    try:
+        from PIL import Image, ImageTk
+        img=Image.open(APP_ICON_PATH).resize((size,size))
+        return ImageTk.PhotoImage(img)
+    except Exception:
+        return None
 
 class AudioRecorder:
     def __init__(self,sample_rate=16000):
@@ -118,10 +152,10 @@ class StatusOverlay:
     def _create_window(self):
         if self.root and self.root.winfo_exists(): return
         self.root=tk.Tk();self.root.withdraw();self.root.overrideredirect(True);self.root.attributes("-topmost",True)
-        try: self.root.attributes("-alpha",0.92)
+        try: self.root.attributes("-alpha",min(self.config.get("window_opacity",0.96),0.92))
         except: pass
         self.root.configure(bg=self._theme["bg"])
-        frame=tk.Frame(self.root,bg=self._theme["panel"],highlightbackground=self._theme["border"],highlightthickness=2,padx=16,pady=12)
+        frame=tk.Frame(self.root,bg=self._theme["panel"],highlightbackground=self._theme["border"],highlightthickness=1,padx=18,pady=13)
         frame.pack(fill="both",expand=True)
         self.canvas=tk.Canvas(frame,width=16,height=16,bg=self._theme["panel"],highlightthickness=0)
         self.canvas.pack(side="left",padx=(0,10))
@@ -183,6 +217,12 @@ class StatusOverlay:
 def create_tray_icon_image(color,size=64):
     try:
         from PIL import Image,ImageDraw
+        if APP_ICON_PATH.exists():
+            img=Image.open(APP_ICON_PATH).convert("RGBA").resize((size,size))
+            draw=ImageDraw.Draw(img)
+            r=max(size//7,6)
+            draw.ellipse([size-r*2-2,size-r*2-2,size-2,size-2],fill=color,outline=(11,11,12,230),width=2)
+            return img
         img=Image.new("RGBA",(size,size),(0,0,0,0));draw=ImageDraw.Draw(img)
         draw.ellipse([4,4,size-4,size-4],fill=color,outline=color)
         cx,cy=size//2,size//2;mc=(255,255,255,220)
@@ -200,7 +240,7 @@ class TrayIcon:
             import pystray;from PIL import Image
         except ImportError: print("  [Tray] pystray/Pillow not installed.");return
         idle_img=create_tray_icon_image((100,100,100))
-        menu=pystray.Menu(pystray.MenuItem("Settings",lambda:self.on_settings()),pystray.MenuItem("History",lambda:self.on_history()),pystray.Menu.SEPARATOR,pystray.MenuItem("Quit",lambda:self.on_quit()))
+        menu=pystray.Menu(pystray.MenuItem("Settings",lambda:self.on_settings()),pystray.MenuItem("History",lambda:self.on_history()),pystray.MenuItem("CK42X.com",lambda:open_url(CK42X_URL)),pystray.Menu.SEPARATOR,pystray.MenuItem("Quit",lambda:self.on_quit()))
         self.icon=pystray.Icon("VoiceRefine",idle_img,"VoiceRefine - Idle",menu);self.running=True
         threading.Thread(target=self.icon.run,daemon=True).start()
     def set_state(self,state):
@@ -214,79 +254,127 @@ class TrayIcon:
         if self.icon: self.icon.stop()
 
 class SettingsWindow:
-    def __init__(self,config,on_save):
-        self.config=config.copy();self.on_save=on_save;self._theme=THEMES.get(config.get("theme","dark"),THEMES["dark"])
+    def __init__(self,config,on_save,first_run=False):
+        self.config=config.copy();self.on_save=on_save;self.first_run=first_run;self._theme=THEMES.get(config.get("theme","dark"),THEMES["dark"]);self._photos=[]
+    def _button(self,parent,text,command,kind="secondary"):
+        colors={"primary":(self._theme["button"],self._theme["button_fg"]),"secondary":(self._theme["panel2"],self._theme["fg"]),"danger":(self._theme["error"],"#ffffff")}
+        bg,fg=colors.get(kind,colors["secondary"])
+        return tk.Button(parent,text=text,command=command,bg=bg,fg=fg,activebackground=bg,activeforeground=fg,relief="flat",bd=0,padx=14,pady=8,font=("Segoe UI",9,"bold"),cursor="hand2")
+    def _entry(self,parent,**kw):
+        return tk.Entry(parent,bg=self._theme["input_bg"],fg=self._theme["input_fg"],insertbackground=self._theme["fg"],relief="flat",highlightthickness=1,highlightbackground=self._theme["border"],highlightcolor=self._theme["accent"],**kw)
+    def _label(self,parent,text,**kw):
+        return tk.Label(parent,text=text,bg=self._theme["panel"],fg=self._theme["fg"],font=("Segoe UI",10),**kw)
+    def _subtle(self,parent,text,**kw):
+        return tk.Label(parent,text=text,bg=self._theme["panel"],fg=self._theme["subtle"],font=("Segoe UI",9),**kw)
     def show(self):
         if not HAS_TK: print("tkinter not available.");return
         root=tk.Toplevel() if hasattr(tk,'_default_root') and tk._default_root else tk.Tk()
-        root.title("VoiceRefine Settings");root.geometry("620x600");root.resizable(False,False);root.configure(bg=self._theme["bg"])
+        root.title("VoiceRefine Setup" if self.first_run else "VoiceRefine Settings");root.geometry("760x680");root.minsize(720,620);root.resizable(True,True)
+        apply_window_chrome(root,self._theme,self.config.get("window_opacity",0.96))
+
+        shell=tk.Frame(root,bg=self._theme["bg"],padx=16,pady=16);shell.pack(fill="both",expand=True)
+        header=tk.Frame(shell,bg=self._theme["panel"],highlightbackground=self._theme["border"],highlightthickness=1,padx=18,pady=16);header.pack(fill="x",pady=(0,12))
+        icon=load_icon_photo(48)
+        if icon:
+            self._photos.append(icon);tk.Label(header,image=icon,bg=self._theme["panel"]).pack(side="left",padx=(0,14))
+        title_box=tk.Frame(header,bg=self._theme["panel"]);title_box.pack(side="left",fill="x",expand=True)
+        tk.Label(title_box,text=APP_NAME,fg=self._theme["fg"],bg=self._theme["panel"],font=("Segoe UI",18,"bold")).pack(anchor="w")
+        subtitle="Paste your OpenAI key once, then hold the hotkey and talk." if self.first_run else "Press to talk. Paste polished."
+        tk.Label(title_box,text=subtitle,fg=self._theme["subtle"],bg=self._theme["panel"],font=("Segoe UI",10)).pack(anchor="w",pady=(2,0))
+        link_box=tk.Frame(header,bg=self._theme["panel"]);link_box.pack(side="right")
+        self._button(link_box,"CK42X",lambda:open_url(CK42X_URL)).pack(side="top",fill="x",pady=(0,6))
+        self._button(link_box,"Get API key",lambda:open_url(OPENAI_KEYS_URL),"primary").pack(side="top",fill="x")
+
         style=ttk.Style();style.theme_use("clam")
-        style.configure("Custom.TNotebook",background=self._theme["bg"])
-        style.configure("Custom.TNotebook.Tab",background=self._theme["panel"],foreground=self._theme["fg"],padding=[12,6])
+        style.configure("Custom.TNotebook",background=self._theme["bg"],borderwidth=0)
+        style.configure("Custom.TNotebook.Tab",background=self._theme["panel2"],foreground=self._theme["fg"],padding=[16,8],borderwidth=0)
         style.map("Custom.TNotebook.Tab",background=[("selected",self._theme["accent"])],foreground=[("selected",self._theme["button_fg"])])
         style.configure("Custom.TFrame",background=self._theme["panel"])
         style.configure("Custom.TLabel",background=self._theme["panel"],foreground=self._theme["fg"])
-        style.configure("Custom.TButton",background=self._theme["button"],foreground=self._theme["button_fg"])
         style.configure("Custom.TCheckbutton",background=self._theme["panel"],foreground=self._theme["fg"])
-        nb=ttk.Notebook(root,style="Custom.TNotebook");nb.pack(fill="both",expand=True,padx=10,pady=10)
-        # Tab 1: API
-        af=ttk.Frame(nb,style="Custom.TFrame",padding=20);nb.add(af,text="  API  ")
-        ttk.Label(af,text="OpenAI API Key:",style="Custom.TLabel").grid(row=0,column=0,sticky="w",pady=8)
-        api_var=tk.StringVar(value=self.config.get("openai_api_key",""))
-        tk.Entry(af,textvariable=api_var,width=45,show="*",bg=self._theme["input_bg"],fg=self._theme["input_fg"],insertbackground=self._theme["fg"]).grid(row=0,column=1,sticky="ew",padx=(10,0),pady=8)
-        ttk.Label(af,text="GPT Model:",style="Custom.TLabel").grid(row=1,column=0,sticky="w",pady=8)
-        model_var=tk.StringVar(value=self.config.get("model","gpt-4o-mini"))
-        ttk.Combobox(af,textvariable=model_var,values=["gpt-4o-mini","gpt-4o","gpt-4-turbo","gpt-3.5-turbo","gpt-4.1-mini","gpt-4.1"],width=42).grid(row=1,column=1,sticky="ew",padx=(10,0),pady=8)
-        ttk.Label(af,text="Whisper Model:",style="Custom.TLabel").grid(row=2,column=0,sticky="w",pady=8)
-        whisper_var=tk.StringVar(value=self.config.get("whisper_model","whisper-1"))
-        tk.Entry(af,textvariable=whisper_var,width=45,bg=self._theme["input_bg"],fg=self._theme["input_fg"],insertbackground=self._theme["fg"]).grid(row=2,column=1,sticky="ew",padx=(10,0),pady=8)
+
+        nb=ttk.Notebook(shell,style="Custom.TNotebook");nb.pack(fill="both",expand=True)
+
+        af=ttk.Frame(nb,style="Custom.TFrame",padding=22);nb.add(af,text="API")
         af.columnconfigure(1,weight=1)
-        # Tab 2: Prompt
-        pf=ttk.Frame(nb,style="Custom.TFrame",padding=20);nb.add(pf,text="  Prompt  ")
-        ttk.Label(pf,text="System prompt for the LLM:",style="Custom.TLabel").pack(anchor="w",pady=(0,8))
-        prompt_text=tk.Text(pf,width=60,height=14,wrap="word",bg=self._theme["input_bg"],fg=self._theme["input_fg"],insertbackground=self._theme["fg"],font=("Consolas",10) if sys.platform=="win32" else ("Courier",10),padx=8,pady=8)
+        status_text="API key required" if not has_api_key(self.config) else "API key saved"
+        status_fg=self._theme["error"] if not has_api_key(self.config) else self._theme["success"]
+        tk.Label(af,text=status_text,fg=status_fg,bg=self._theme["panel"],font=("Segoe UI",11,"bold")).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
+        self._subtle(af,"Your key is stored locally in config.json. You can also set OPENAI_API_KEY instead.",wraplength=640,justify="left").grid(row=1,column=0,columnspan=3,sticky="w",pady=(0,16))
+        self._label(af,"OpenAI API Key").grid(row=2,column=0,sticky="w",pady=8)
+        api_var=tk.StringVar(value=self.config.get("openai_api_key",""))
+        api_entry=self._entry(af,textvariable=api_var,width=50,show="*")
+        api_entry.grid(row=2,column=1,sticky="ew",padx=(12,8),pady=8,ipady=7)
+        show_key=tk.BooleanVar(value=False)
+        def toggle_key():
+            show_key.set(not show_key.get());api_entry.configure(show="" if show_key.get() else "*");show_btn.configure(text="Hide" if show_key.get() else "Show")
+        show_btn=self._button(af,"Show",toggle_key);show_btn.grid(row=2,column=2,sticky="ew",pady=8)
+        env_key=os.environ.get("OPENAI_API_KEY","").strip()
+        env_msg="OPENAI_API_KEY is available and will be used if the field is empty." if env_key else "No OPENAI_API_KEY environment variable detected."
+        self._subtle(af,env_msg,wraplength=640,justify="left").grid(row=3,column=1,columnspan=2,sticky="w",padx=(12,0),pady=(0,12))
+        self._label(af,"GPT Model").grid(row=4,column=0,sticky="w",pady=8)
+        model_var=tk.StringVar(value=self.config.get("model","gpt-4o-mini"))
+        ttk.Combobox(af,textvariable=model_var,values=["gpt-4o-mini","gpt-4o","gpt-4.1-mini","gpt-4.1","gpt-4-turbo"],width=42).grid(row=4,column=1,columnspan=2,sticky="ew",padx=(12,0),pady=8)
+        self._label(af,"Whisper Model").grid(row=5,column=0,sticky="w",pady=8)
+        whisper_var=tk.StringVar(value=self.config.get("whisper_model","whisper-1"))
+        self._entry(af,textvariable=whisper_var,width=50).grid(row=5,column=1,columnspan=2,sticky="ew",padx=(12,0),pady=8,ipady=7)
+        tip=tk.Frame(af,bg=self._theme["panel2"],highlightbackground=self._theme["border"],highlightthickness=1,padx=14,pady=12);tip.grid(row=6,column=0,columnspan=3,sticky="ew",pady=(18,0))
+        tk.Label(tip,text="First run flow",fg=self._theme["accent"],bg=self._theme["panel2"],font=("Segoe UI",10,"bold")).pack(anchor="w")
+        tk.Label(tip,text="1. Create or copy an OpenAI API key.  2. Paste it here.  3. Save and VoiceRefine starts cleanly.",fg=self._theme["subtle"],bg=self._theme["panel2"],font=("Segoe UI",9),wraplength=650,justify="left").pack(anchor="w",pady=(4,0))
+        if self.first_run: root.after(250,api_entry.focus_set)
+
+        pf=ttk.Frame(nb,style="Custom.TFrame",padding=22);nb.add(pf,text="Prompt")
+        self._label(pf,"System prompt for polish").pack(anchor="w",pady=(0,8))
+        prompt_text=tk.Text(pf,width=60,height=13,wrap="word",bg=self._theme["input_bg"],fg=self._theme["input_fg"],insertbackground=self._theme["fg"],relief="flat",highlightthickness=1,highlightbackground=self._theme["border"],highlightcolor=self._theme["accent"],font=("Consolas",10) if sys.platform=="win32" else ("Courier",10),padx=10,pady=10)
         prompt_text.pack(fill="both",expand=True);prompt_text.insert("1.0",self.config.get("prompt",DEFAULT_CONFIG["prompt"]))
-        prf=ttk.Frame(pf,style="Custom.TFrame");prf.pack(fill="x",pady=(8,0))
-        ttk.Label(prf,text="Presets:",style="Custom.TLabel").pack(side="left")
-        presets={"Clean Up":"Fix grammar, punctuation, and spelling. Keep the original tone. Return only the corrected text.","Professional":"Rewrite in a professional tone. Fix all errors. Return only the improved text.","Casual":"Clean up but keep it casual. Fix obvious errors. Return only the text.","Summarize":"Summarize into concise bullet points. Return only the summary.","Email":"Turn into a well-formatted email with greeting and sign-off. Return only the email."}
+        prf=tk.Frame(pf,bg=self._theme["panel"]);prf.pack(fill="x",pady=(10,0))
+        tk.Label(prf,text="Presets",bg=self._theme["panel"],fg=self._theme["subtle"],font=("Segoe UI",9,"bold")).pack(side="left",padx=(0,8))
+        presets={"Clean Up":"Fix grammar, punctuation, and spelling. Keep the original tone. Return only the corrected text.","Professional":"Rewrite in a professional tone. Fix all errors. Return only the improved text.","Casual":"Clean up but keep it casual. Fix obvious errors. Return only the text.","Summary":"Summarize into concise bullet points. Return only the summary.","Email":"Turn into a well-formatted email with greeting and sign-off. Return only the email."}
         for n in presets:
             def sp(name=n): prompt_text.delete("1.0","end");prompt_text.insert("1.0",presets[name])
-            ttk.Button(prf,text=n,command=sp).pack(side="left",padx=4)
-        # Tab 3: Hotkey
-        hf=ttk.Frame(nb,style="Custom.TFrame",padding=20);nb.add(hf,text="  Hotkey  ")
-        ttk.Label(hf,text="Hotkey Combo:",style="Custom.TLabel").grid(row=0,column=0,sticky="w",pady=8)
-        hotkey_var=tk.StringVar(value=self.config.get("hotkey","<cmd>+<alt>"))
-        tk.Entry(hf,textvariable=hotkey_var,width=30,bg=self._theme["input_bg"],fg=self._theme["input_fg"],insertbackground=self._theme["fg"]).grid(row=0,column=1,sticky="w",padx=(10,0),pady=8)
-        ttk.Label(hf,text="Options: <cmd>, <alt>, <ctrl>, <shift>, or single letters",style="Custom.TLabel").grid(row=1,column=0,columnspan=2,sticky="w",pady=(0,16))
-        r=2
-        for combo,label in [("<cmd>+<alt>","Win+Alt"),("<ctrl>+<shift>+r","Ctrl+Shift+R"),("<ctrl>+<alt>","Ctrl+Alt")]:
-            ttk.Button(hf,text=label,command=lambda c=combo:hotkey_var.set(c)).grid(row=r,column=0,columnspan=2,sticky="w",padx=(20,0),pady=2);r+=1
-        auto_paste_var=tk.BooleanVar(value=self.config.get("auto_paste",False))
-        ttk.Checkbutton(hf,text="Auto-paste after copying (Ctrl+V)",variable=auto_paste_var,style="Custom.TCheckbutton").grid(row=r+1,column=0,columnspan=2,sticky="w",pady=4)
+            self._button(prf,n,sp).pack(side="left",padx=3)
+
+        hf=ttk.Frame(nb,style="Custom.TFrame",padding=22);nb.add(hf,text="Hotkey")
         hf.columnconfigure(1,weight=1)
-        # Tab 4: Appearance
-        apf=ttk.Frame(nb,style="Custom.TFrame",padding=20);nb.add(apf,text="  Appearance  ")
+        self._label(hf,"Hold-to-record hotkey").grid(row=0,column=0,sticky="w",pady=8)
+        hotkey_var=tk.StringVar(value=self.config.get("hotkey","<cmd>+<alt>"))
+        self._entry(hf,textvariable=hotkey_var,width=32).grid(row=0,column=1,sticky="w",padx=(12,0),pady=8,ipady=7)
+        self._subtle(hf,"Use <cmd>, <alt>, <ctrl>, <shift>, or add one letter like <ctrl>+<alt>+r.",wraplength=620,justify="left").grid(row=1,column=0,columnspan=2,sticky="w",pady=(0,16))
+        r=2
+        for combo,label in [("<cmd>+<alt>","Win + Alt"),("<ctrl>+<shift>+r","Ctrl + Shift + R"),("<ctrl>+<alt>","Ctrl + Alt")]:
+            self._button(hf,label,lambda c=combo:hotkey_var.set(c)).grid(row=r,column=0,columnspan=2,sticky="w",pady=3);r+=1
+        auto_paste_var=tk.BooleanVar(value=self.config.get("auto_paste",False))
+        ttk.Checkbutton(hf,text="Auto-paste after copying with Ctrl+V",variable=auto_paste_var,style="Custom.TCheckbutton").grid(row=r+1,column=0,columnspan=2,sticky="w",pady=(20,4))
+
+        apf=ttk.Frame(nb,style="Custom.TFrame",padding=22);nb.add(apf,text="Appearance")
+        apf.columnconfigure(1,weight=1)
         overlay_var=tk.BooleanVar(value=self.config.get("show_overlay",True))
         ttk.Checkbutton(apf,text="Show floating status overlay",variable=overlay_var,style="Custom.TCheckbutton").grid(row=0,column=0,columnspan=2,sticky="w",pady=8)
-        ttk.Label(apf,text="Overlay Position:",style="Custom.TLabel").grid(row=1,column=0,sticky="w",pady=8)
+        self._label(apf,"Overlay position").grid(row=1,column=0,sticky="w",pady=8)
         pos_var=tk.StringVar(value=self.config.get("overlay_position","bottom-right"))
-        ttk.Combobox(apf,textvariable=pos_var,values=["bottom-right","bottom-left","top-right","top-left","center"],width=20).grid(row=1,column=1,sticky="w",padx=(10,0),pady=8)
-        ttk.Label(apf,text="Overlay Duration (sec):",style="Custom.TLabel").grid(row=2,column=0,sticky="w",pady=8)
+        ttk.Combobox(apf,textvariable=pos_var,values=["bottom-right","bottom-left","top-right","top-left","center"],width=22).grid(row=1,column=1,sticky="w",padx=(12,0),pady=8)
+        self._label(apf,"Overlay duration").grid(row=2,column=0,sticky="w",pady=8)
         dur_var=tk.IntVar(value=self.config.get("overlay_duration",3))
-        ttk.Spinbox(apf,from_=1,to=10,textvariable=dur_var,width=5).grid(row=2,column=1,sticky="w",padx=(10,0),pady=8)
-        ttk.Label(apf,text="Theme:",style="Custom.TLabel").grid(row=3,column=0,sticky="w",pady=8)
+        ttk.Spinbox(apf,from_=1,to=10,textvariable=dur_var,width=6).grid(row=2,column=1,sticky="w",padx=(12,0),pady=8)
+        self._label(apf,"Theme").grid(row=3,column=0,sticky="w",pady=8)
         theme_var=tk.StringVar(value=self.config.get("theme","dark"))
-        ttk.Combobox(apf,textvariable=theme_var,values=["dark","light"],width=10).grid(row=3,column=1,sticky="w",padx=(10,0),pady=8)
-        apf.columnconfigure(1,weight=1)
-        # Save/Cancel
-        bf=tk.Frame(root,bg=self._theme["bg"]);bf.pack(fill="x",padx=10,pady=(0,10))
+        ttk.Combobox(apf,textvariable=theme_var,values=["dark","light"],width=12).grid(row=3,column=1,sticky="w",padx=(12,0),pady=8)
+        self._label(apf,"Window opacity").grid(row=4,column=0,sticky="w",pady=8)
+        opacity_var=tk.DoubleVar(value=self.config.get("window_opacity",0.96))
+        ttk.Scale(apf,from_=0.86,to=1.0,variable=opacity_var,orient="horizontal").grid(row=4,column=1,sticky="ew",padx=(12,0),pady=8)
+        self._subtle(apf,"Lower values make Settings, History, and the overlay more transparent.",wraplength=620,justify="left").grid(row=5,column=0,columnspan=2,sticky="w",pady=(0,8))
+
+        bf=tk.Frame(shell,bg=self._theme["bg"]);bf.pack(fill="x",pady=(12,0))
+        status=tk.Label(bf,text="",bg=self._theme["bg"],fg=self._theme["subtle"],font=("Segoe UI",9));status.pack(side="left")
         def on_save():
-            self.config.update({"openai_api_key":api_var.get().strip(),"model":model_var.get().strip(),"whisper_model":whisper_var.get().strip(),"hotkey":hotkey_var.get().strip(),"prompt":prompt_text.get("1.0","end").strip(),"show_overlay":overlay_var.get(),"overlay_position":pos_var.get(),"overlay_duration":dur_var.get(),"auto_paste":auto_paste_var.get(),"theme":theme_var.get()})
+            self.config.update({"openai_api_key":api_var.get().strip(),"model":model_var.get().strip(),"whisper_model":whisper_var.get().strip(),"hotkey":hotkey_var.get().strip(),"prompt":prompt_text.get("1.0","end").strip(),"show_overlay":overlay_var.get(),"overlay_position":pos_var.get(),"overlay_duration":dur_var.get(),"window_opacity":round(float(opacity_var.get()),2),"auto_paste":auto_paste_var.get(),"theme":theme_var.get()})
             save_config(self.config)
             if self.on_save: self.on_save(self.config)
-            messagebox.showinfo("Saved","Settings saved! Restart VoiceRefine to apply.");root.destroy()
-        tk.Button(bf,text="  Save  ",command=on_save,bg=self._theme["button"],fg=self._theme["button_fg"],font=("Segoe UI",10,"bold"),relief="flat",padx=16,pady=6).pack(side="right",padx=5)
-        tk.Button(bf,text="  Cancel  ",command=root.destroy,bg=self._theme["border"],fg=self._theme["fg"],relief="flat",padx=16,pady=6).pack(side="right",padx=5)
+            status.configure(text="Saved. VoiceRefine is ready.",fg=self._theme["success"])
+            if self.first_run: root.after(350,root.destroy)
+            else: messagebox.showinfo("Saved","Settings saved.");root.destroy()
+        self._button(bf,"Cancel",root.destroy).pack(side="right",padx=(8,0))
+        self._button(bf,"Save and start" if self.first_run else "Save",on_save,"primary").pack(side="right")
 
 class HistoryWindow:
     def __init__(self,config): self._theme=THEMES.get(config.get("theme","dark"),THEMES["dark"])
@@ -294,12 +382,18 @@ class HistoryWindow:
         if not HAS_TK: return
         history=load_history()
         root=tk.Toplevel() if hasattr(tk,'_default_root') and tk._default_root else tk.Tk()
-        root.title("VoiceRefine History");root.geometry("700x500");root.configure(bg=self._theme["bg"])
-        hdr=tk.Frame(root,bg=self._theme["panel"],padx=16,pady=10);hdr.pack(fill="x")
-        tk.Label(hdr,text=f"History ({len(history)} entries)",fg=self._theme["accent"],bg=self._theme["panel"],font=("Segoe UI",12,"bold")).pack(side="left")
+        root.title("VoiceRefine History");root.geometry("760x540");apply_window_chrome(root,self._theme,load_config().get("window_opacity",0.96))
+        hdr=tk.Frame(root,bg=self._theme["panel"],highlightbackground=self._theme["border"],highlightthickness=1,padx=16,pady=12);hdr.pack(fill="x",padx=12,pady=12)
+        icon=load_icon_photo(34)
+        if icon:
+            root._vr_icon=icon;tk.Label(hdr,image=icon,bg=self._theme["panel"]).pack(side="left",padx=(0,10))
+        title_box=tk.Frame(hdr,bg=self._theme["panel"]);title_box.pack(side="left",fill="x",expand=True)
+        tk.Label(title_box,text=f"History ({len(history)} entries)",fg=self._theme["accent"],bg=self._theme["panel"],font=("Segoe UI",13,"bold")).pack(anchor="w")
+        tk.Label(title_box,text="Search, copy, and reuse polished dictations.",fg=self._theme["subtle"],bg=self._theme["panel"],font=("Segoe UI",9)).pack(anchor="w")
         def clr():
             if messagebox.askyesno("Clear","Clear all history?"): save_history([]);root.destroy()
-        tk.Button(hdr,text="Clear All",command=clr,bg=self._theme["error"],fg="#fff",relief="flat",padx=10).pack(side="right")
+        tk.Button(hdr,text="CK42X",command=lambda:open_url(CK42X_URL),bg=self._theme["panel2"],fg=self._theme["fg"],relief="flat",padx=12,pady=7,cursor="hand2").pack(side="right",padx=(8,0))
+        tk.Button(hdr,text="Clear All",command=clr,bg=self._theme["error"],fg="#fff",relief="flat",padx=12,pady=7,cursor="hand2").pack(side="right")
         cv=tk.Canvas(root,bg=self._theme["bg"],highlightthickness=0);sb=ttk.Scrollbar(root,orient="vertical",command=cv.yview)
         sf=tk.Frame(cv,bg=self._theme["bg"]);sf.bind("<Configure>",lambda e:cv.configure(scrollregion=cv.bbox("all")))
         cv.create_window((0,0),window=sf,anchor="nw");cv.configure(yscrollcommand=sb.set)
@@ -319,11 +413,16 @@ class VoiceRefine:
         self.processor=None;self.hotkey_mgr=None;self.overlay=None;self.tray=None;self.processing=False
         try: self.processor=VoiceProcessor(self.config)
         except ValueError as e:
-            print(f"\n{'='*60}\n  SETUP NEEDED: {e}\n  Run: python voicerefine.py --settings\n{'='*60}\n")
+            print(f"\n{'='*60}\n  SETUP NEEDED: {e}\n  Opening the VoiceRefine setup window.\n{'='*60}\n")
             if HAS_TK:
-                r=tk.Tk();r.withdraw();messagebox.showerror("VoiceRefine",f"{e}\n\nOpening settings...");r.destroy()
-                SettingsWindow(self.config,None).show()
-            sys.exit(1)
+                saved={"value":False}
+                def after_save(cfg):
+                    self.config=cfg;saved["value"]=has_api_key(cfg)
+                SettingsWindow(self.config,after_save,first_run=True).show()
+                tk.mainloop()
+                if saved["value"]:
+                    self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000));self.processor=VoiceProcessor(self.config);return
+            sys.exit(0)
     def _on_hotkey_press(self):
         if self.processing: return
         print("  Recording...");self.recorder.start()
@@ -382,7 +481,7 @@ class VoiceRefine:
         else: hw.show()
     def run(self):
         hk=self.config.get("hotkey","<cmd>+<alt>")
-        print(f"\n VoiceRefine v2.0\n Hotkey: {hk} | Model: {self.config.get('model','gpt-4o-mini')} | Overlay: {'On' if self.config.get('show_overlay') else 'Off'}\n Hold hotkey to record, release to process. Right-click tray for settings.\n")
+        print(f"\n VoiceRefine v{APP_VERSION}\n Hotkey: {hk} | Model: {self.config.get('model','gpt-4o-mini')} | Overlay: {'On' if self.config.get('show_overlay') else 'Off'}\n Hold hotkey to record, release to process. Right-click tray for settings.\n")
         self.hotkey_mgr=HotkeyManager(hk,self._on_hotkey_press,self._on_hotkey_release);self.hotkey_mgr.start()
         self.tray=TrayIcon(self._open_settings,self._open_history,self._quit);self.tray.start()
         self.overlay=StatusOverlay(self.config)
