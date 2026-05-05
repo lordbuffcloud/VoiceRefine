@@ -79,6 +79,12 @@ Tray icon colors:
 | Amber `#ffb300` | Transcribing / refining |
 | Teal `#4ecca3` | Copied to clipboard |
 
+### Microphone troubleshooting
+
+If the hotkey appears to do nothing, first confirm Windows has an enabled recording device. VoiceRefine now shows a visible error when no microphone input device is available instead of silently dropping the hotkey event.
+
+Open **Settings > API > Input device** to select a specific microphone. If the list says no input devices were found, enable or connect a microphone in Windows Sound settings, then reopen VoiceRefine.
+
 ### Settings
 
 Open via the tray menu or run:

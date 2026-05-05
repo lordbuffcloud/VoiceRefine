@@ -35,11 +35,11 @@ else:
 CONFIG_PATH = _CONFIG_BASE / "config.json"
 HISTORY_PATH = _CONFIG_BASE / "history.json"
 APP_NAME = "VoiceRefine"
-APP_VERSION = "2.1"
+APP_VERSION = "2.1.1"
 CK42X_URL = "https://ck42x.com"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
 APP_ICON_PATH = _RESOURCE_BASE / "branding" / "app-icon.ico"
-DEFAULT_CONFIG = {"openai_api_key":"","model":"gpt-4o-mini","whisper_model":"whisper-1","hotkey":"<cmd>+<alt>","prompt":"You are a writing assistant. Take the following transcribed speech and improve it: fix grammar, punctuation, and spelling errors. Make it clear and well-structured while preserving the speaker's original meaning and tone. If the text is a quick message, keep it casual. If it's more formal, match that register. Do not add information that wasn't in the original. Return only the improved text, nothing else.","sample_rate":16000,"show_overlay":True,"overlay_position":"bottom-right","overlay_duration":3,"window_opacity":0.96,"auto_paste":False,"play_sounds":True,"theme":"dark","max_history":100}
+DEFAULT_CONFIG = {"openai_api_key":"","model":"gpt-4o-mini","whisper_model":"whisper-1","hotkey":"<cmd>+<alt>","prompt":"You are a writing assistant. Take the following transcribed speech and improve it: fix grammar, punctuation, and spelling errors. Make it clear and well-structured while preserving the speaker's original meaning and tone. If the text is a quick message, keep it casual. If it's more formal, match that register. Do not add information that wasn't in the original. Return only the improved text, nothing else.","sample_rate":16000,"input_device":None,"show_overlay":True,"overlay_position":"bottom-right","overlay_duration":3,"window_opacity":0.96,"auto_paste":False,"play_sounds":True,"theme":"dark","max_history":100}
 THEMES = {"dark":{"bg":"#0b0b0c","fg":"#e9e9ea","accent":"#ffb300","accent2":"#e94560","success":"#4ecca3","recording":"#e94560","thinking":"#ffb300","done":"#4ecca3","error":"#ff6b6b","panel":"#151517","panel2":"#101012","border":"#2a2b30","input_bg":"#101012","input_fg":"#e9e9ea","button":"#ffb300","button_fg":"#0b0b0c","subtle":"#a2a3a8"},"light":{"bg":"#f5f5f5","fg":"#1a1a1a","accent":"#d49100","accent2":"#c0392b","success":"#27ae60","recording":"#c0392b","thinking":"#d49100","done":"#27ae60","error":"#e74c3c","panel":"#ffffff","panel2":"#f0f0f1","border":"#d8d8dc","input_bg":"#ffffff","input_fg":"#1a1a1a","button":"#d49100","button_fg":"#ffffff","subtle":"#6c6d72"}}
 
 def load_config():
@@ -83,13 +83,41 @@ def load_icon_photo(size=42):
     except Exception:
         return None
 
+def get_input_devices():
+    try:
+        devices=sd.query_devices()
+        return [(i,d["name"]) for i,d in enumerate(devices) if d.get("max_input_channels",0)>0]
+    except Exception:
+        return []
+
+def normalize_input_device(device):
+    if device in (None,"","default"): return None
+    try: return int(device)
+    except (TypeError,ValueError): return None
+
+def choose_input_device(configured_device=None):
+    inputs=get_input_devices()
+    if not inputs:
+        raise RuntimeError("No microphone input device found. Connect or enable a microphone in Windows Sound settings, then reopen VoiceRefine.")
+    configured_device=normalize_input_device(configured_device)
+    available={idx for idx,_ in inputs}
+    if configured_device in available: return configured_device
+    default_device=sd.default.device[0] if isinstance(sd.default.device,(list,tuple)) else sd.default.device
+    if isinstance(default_device,int) and default_device in available: return default_device
+    return inputs[0][0]
+
 class AudioRecorder:
-    def __init__(self,sample_rate=16000):
-        self.sample_rate=sample_rate;self.frames=[];self.recording=False;self.stream=None;self.start_time=None
+    def __init__(self,sample_rate=16000,input_device=None):
+        self.sample_rate=sample_rate;self.input_device=normalize_input_device(input_device);self.frames=[];self.recording=False;self.stream=None;self.start_time=None
     def start(self):
         self.frames=[];self.recording=True;self.start_time=time.time()
-        self.stream=sd.InputStream(samplerate=self.sample_rate,channels=1,dtype="int16",callback=self._callback)
-        self.stream.start()
+        try:
+            device=choose_input_device(self.input_device)
+            self.stream=sd.InputStream(samplerate=self.sample_rate,channels=1,dtype="int16",device=device,callback=self._callback)
+            self.stream.start()
+        except Exception:
+            self.recording=False;self.start_time=None;self.stream=None
+            raise
     def _callback(self,indata,frame_count,time_info,status):
         if self.recording: self.frames.append(indata.copy())
     def get_duration(self): return time.time()-self.start_time if self.start_time else 0
@@ -318,7 +346,17 @@ class SettingsWindow:
         self._label(af,"Whisper Model").grid(row=5,column=0,sticky="w",pady=8)
         whisper_var=tk.StringVar(value=self.config.get("whisper_model","whisper-1"))
         self._entry(af,textvariable=whisper_var,width=50).grid(row=5,column=1,columnspan=2,sticky="ew",padx=(12,0),pady=8,ipady=7)
-        tip=tk.Frame(af,bg=self._theme["panel2"],highlightbackground=self._theme["border"],highlightthickness=1,padx=14,pady=12);tip.grid(row=6,column=0,columnspan=3,sticky="ew",pady=(18,0))
+        self._label(af,"Input device").grid(row=6,column=0,sticky="w",pady=8)
+        input_devices=get_input_devices()
+        device_labels=["System default"]+[f"{idx}: {name}" for idx,name in input_devices]
+        if not input_devices: device_labels=["No input devices found"]
+        configured_device=normalize_input_device(self.config.get("input_device"))
+        configured_label=next((f"{idx}: {name}" for idx,name in input_devices if idx==configured_device),device_labels[0])
+        input_device_var=tk.StringVar(value=configured_label)
+        ttk.Combobox(af,textvariable=input_device_var,values=device_labels,width=42,state="readonly").grid(row=6,column=1,columnspan=2,sticky="ew",padx=(12,0),pady=8)
+        mic_msg="No microphone input devices were detected. Enable one in Windows Sound settings, then reopen VoiceRefine." if not input_devices else "Leave this on System default unless VoiceRefine is listening to the wrong microphone."
+        self._subtle(af,mic_msg,wraplength=640,justify="left").grid(row=7,column=1,columnspan=2,sticky="w",padx=(12,0),pady=(0,12))
+        tip=tk.Frame(af,bg=self._theme["panel2"],highlightbackground=self._theme["border"],highlightthickness=1,padx=14,pady=12);tip.grid(row=8,column=0,columnspan=3,sticky="ew",pady=(18,0))
         tk.Label(tip,text="First run flow",fg=self._theme["accent"],bg=self._theme["panel2"],font=("Segoe UI",10,"bold")).pack(anchor="w")
         tk.Label(tip,text="1. Create or copy an OpenAI API key.  2. Paste it here.  3. Save and VoiceRefine starts cleanly.",fg=self._theme["subtle"],bg=self._theme["panel2"],font=("Segoe UI",9),wraplength=650,justify="left").pack(anchor="w",pady=(4,0))
         if self.first_run: root.after(250,api_entry.focus_set)
@@ -367,7 +405,10 @@ class SettingsWindow:
         bf=tk.Frame(shell,bg=self._theme["bg"]);bf.pack(fill="x",pady=(12,0))
         status=tk.Label(bf,text="",bg=self._theme["bg"],fg=self._theme["subtle"],font=("Segoe UI",9));status.pack(side="left")
         def on_save():
-            self.config.update({"openai_api_key":api_var.get().strip(),"model":model_var.get().strip(),"whisper_model":whisper_var.get().strip(),"hotkey":hotkey_var.get().strip(),"prompt":prompt_text.get("1.0","end").strip(),"show_overlay":overlay_var.get(),"overlay_position":pos_var.get(),"overlay_duration":dur_var.get(),"window_opacity":round(float(opacity_var.get()),2),"auto_paste":auto_paste_var.get(),"theme":theme_var.get()})
+            selected_device=None
+            if input_device_var.get() and input_device_var.get()[0].isdigit():
+                selected_device=int(input_device_var.get().split(":",1)[0])
+            self.config.update({"openai_api_key":api_var.get().strip(),"model":model_var.get().strip(),"whisper_model":whisper_var.get().strip(),"input_device":selected_device,"hotkey":hotkey_var.get().strip(),"prompt":prompt_text.get("1.0","end").strip(),"show_overlay":overlay_var.get(),"overlay_position":pos_var.get(),"overlay_duration":dur_var.get(),"window_opacity":round(float(opacity_var.get()),2),"auto_paste":auto_paste_var.get(),"theme":theme_var.get()})
             save_config(self.config)
             if self.on_save: self.on_save(self.config)
             status.configure(text="Saved. VoiceRefine is ready.",fg=self._theme["success"])
@@ -409,7 +450,7 @@ class HistoryWindow:
 
 class VoiceRefine:
     def __init__(self):
-        self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000))
+        self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"))
         self.processor=None;self.hotkey_mgr=None;self.overlay=None;self.tray=None;self.processing=False
         try: self.processor=VoiceProcessor(self.config)
         except ValueError as e:
@@ -421,11 +462,21 @@ class VoiceRefine:
                 SettingsWindow(self.config,after_save,first_run=True).show()
                 tk.mainloop()
                 if saved["value"]:
-                    self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000));self.processor=VoiceProcessor(self.config);return
+                    self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"));self.processor=VoiceProcessor(self.config);return
             sys.exit(0)
     def _on_hotkey_press(self):
         if self.processing: return
-        print("  Recording...");self.recorder.start()
+        print("  Recording...")
+        try: self.recorder.start()
+        except Exception as e:
+            msg=str(e)
+            print(f"  Microphone error: {msg}")
+            if self.overlay: self.overlay.show("error",msg[:90])
+            if self.tray: self.tray.set_state("error")
+            def rt():
+                time.sleep(4);self.tray and self.tray.set_state("idle")
+            threading.Thread(target=rt,daemon=True).start()
+            return
         if self.overlay: self.overlay.show("recording","Recording... 0.0s")
         if self.tray: self.tray.set_state("recording")
         self._update_recording()
@@ -472,7 +523,9 @@ class VoiceRefine:
             if self.tray: self.tray.set_state("error")
         finally: self.processing=False
     def _open_settings(self):
-        sw=SettingsWindow(self.config,lambda c:setattr(self,'config',c))
+        def apply_config(c):
+            self.config=c;self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"))
+        sw=SettingsWindow(self.config,apply_config)
         if self.overlay and self.overlay.root: self.overlay.root.after(0,sw.show)
         else: sw.show()
     def _open_history(self):
@@ -482,9 +535,9 @@ class VoiceRefine:
     def run(self):
         hk=self.config.get("hotkey","<cmd>+<alt>")
         print(f"\n VoiceRefine v{APP_VERSION}\n Hotkey: {hk} | Model: {self.config.get('model','gpt-4o-mini')} | Overlay: {'On' if self.config.get('show_overlay') else 'Off'}\n Hold hotkey to record, release to process. Right-click tray for settings.\n")
-        self.hotkey_mgr=HotkeyManager(hk,self._on_hotkey_press,self._on_hotkey_release);self.hotkey_mgr.start()
-        self.tray=TrayIcon(self._open_settings,self._open_history,self._quit);self.tray.start()
         self.overlay=StatusOverlay(self.config)
+        self.tray=TrayIcon(self._open_settings,self._open_history,self._quit);self.tray.start()
+        self.hotkey_mgr=HotkeyManager(hk,self._on_hotkey_press,self._on_hotkey_release);self.hotkey_mgr.start()
         try: self.overlay.run_loop()
         except KeyboardInterrupt: self._quit()
     def _quit(self):
