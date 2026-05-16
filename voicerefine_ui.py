@@ -367,6 +367,27 @@ class ChordCaptureButton(ctk.CTkButton if HAS_CTK else tk.Button):
 
 class WaveformBars:
     """Animated bar visualizer for live RMS level. Renders into a host frame."""
+    @staticmethod
+    def _resolve_master_bg(master, fallback):
+        # Try CTk widget first, then tk widget, finally fall back to a known color.
+        try:
+            fg = master.cget("fg_color")
+            if isinstance(fg, (list, tuple)):
+                # CTk theme tuple: (light, dark)
+                if HAS_CTK:
+                    try:
+                        return fg[1] if ctk.get_appearance_mode() == "Dark" else fg[0]
+                    except Exception:
+                        return fg[-1]
+                return fg[-1]
+            return fg
+        except tk.TclError:
+            pass
+        try:
+            return master.cget("bg")
+        except Exception:
+            return fallback
+
     def __init__(self, master, theme="dark", bars=12, width=160, height=36, idle_color=None, active_color=None):
         self._c = palette(theme)
         self._bars = bars
@@ -374,9 +395,8 @@ class WaveformBars:
         self._h = height
         self._idle = idle_color or self._c["border"]
         self._active = active_color or self._c["accent"]
-        self.canvas = tk.Canvas(master, width=width, height=height,
-                                bg=master.cget("fg_color")[1] if HAS_CTK and isinstance(master.cget("fg_color"), (list, tuple))
-                                else (master.cget("bg") if not HAS_CTK else self._c["surface"]),
+        bg = self._resolve_master_bg(master, self._c["surface"])
+        self.canvas = tk.Canvas(master, width=width, height=height, bg=bg,
                                 highlightthickness=0, bd=0)
         self._rects = []
         gap = 3
@@ -419,11 +439,10 @@ class StepIndicator:
         self._steps = steps
         self._current = current
         self.frame = ctk.CTkFrame(master, fg_color="transparent") if HAS_CTK else tk.Frame(master, bg=c["bg"])
+        bg = WaveformBars._resolve_master_bg(master, c["bg"])
         self._dots = []
         for i in range(steps):
-            d = tk.Canvas(self.frame, width=14, height=14,
-                          bg=master.cget("fg_color")[1] if HAS_CTK and isinstance(master.cget("fg_color"), (list, tuple))
-                          else (master.cget("bg") if not HAS_CTK else c["bg"]),
+            d = tk.Canvas(self.frame, width=14, height=14, bg=bg,
                           highlightthickness=0, bd=0)
             oval = d.create_oval(2, 2, 12, 12, fill=c["border"], outline="")
             d.pack(side="left", padx=4)
