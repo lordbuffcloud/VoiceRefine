@@ -27,15 +27,21 @@
 ## Features
 
 - **Hold-to-record hotkey.** Press and hold to capture. Release to process. No clicking.
-- **Whisper transcription.** Audio goes to OpenAI Whisper. Accurate across accents and registers.
-- **GPT polish.** Configurable system prompt. Cleans grammar, fixes punctuation, preserves your voice.
+- **Named polish presets.** Bind different prompts to different hotkey chords — `Win+Alt` for default, `Win+Alt+C` for code, `Win+Alt+E` for email, `Win+Alt+S` for summary. Add your own.
+- **Whisper transcription.** Audio goes to OpenAI Whisper, or `faster-whisper` running locally on your machine — your choice.
+- **GPT polish.** Per-preset system prompt. Cleans grammar, fixes punctuation, preserves your voice.
 - **Clipboard delivery.** Polished text lands on the clipboard. Paste anywhere.
-- **System tray.** Color-coded tray icon tracks state: recording (red), refining (amber), done (teal).
-- **Floating overlay.** Non-intrusive status window. Configurable position and duration.
+- **First-run wizard.** Guided setup — paste key, test mic with live waveform, bind a hotkey by pressing it.
+- **Sidebar Settings.** Modern seven-section UI (General / Polish / Hotkeys / Audio / Vault / Backend / About).
+- **Rich tray menu.** Live preview of the last capture, pause/resume hotkeys, today's capture count and word count.
+- **Floating overlay.** Pill-style chip with animated waveform during recording. Configurable position.
 - **History viewer.** Browse, search, and re-copy past transcriptions from the tray menu.
-- **MCP server.** Expose voice capture as tools for Claude Code, Gemini CLI, and Codex CLI.
+- **Optional vault writes.** Mirror each capture into an Obsidian vault under `11-Data/<category>/YYYY/MM/<id>.json + .md`.
+- **MCP server.** Expose voice capture, history search, and vault writes as tools for Claude Code, Gemini CLI, and Codex CLI.
 - **WebSocket stream.** Broadcast polished text events to local listeners in real time.
 - **Dark and light themes.** CK42X matte-black dark by default.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for what's new in each release.
 
 ---
 

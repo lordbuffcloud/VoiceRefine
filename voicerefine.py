@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-VoiceRefine v2.0 - Voice to polished text, straight to your clipboard.
+VoiceRefine 2.2 - Voice to polished text, straight to your clipboard.
+
+Hold a hotkey to record. Whisper transcribes. GPT polishes. The result
+lands on the clipboard. Named presets bind different prompts to different
+hotkeys, and captures can optionally be written to an Obsidian vault.
 """
 import sys, os, traceback
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0] if hasattr(sys, 'argv') and sys.argv else __file__)), "voicerefine_crash.log")
@@ -46,7 +50,7 @@ else:
 CONFIG_PATH = _CONFIG_BASE / "config.json"
 HISTORY_PATH = _CONFIG_BASE / "history.json"
 APP_NAME = "VoiceRefine"
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.2.0"
 CK42X_URL = "https://ck42x.com"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
 APP_ICON_PATH = _RESOURCE_BASE / "branding" / "app-icon.ico"
