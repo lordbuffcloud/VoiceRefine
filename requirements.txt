@@ -7,3 +7,7 @@ pystray>=0.19.5
 Pillow>=10.0.0
 mcp>=1.0.0
 websockets>=12.0
+
+# Optional: enable local Whisper transcription (Backend tab = local|auto).
+# Skip this line if you only want the OpenAI cloud backend.
+# faster-whisper>=1.0.0

@@ -114,9 +114,19 @@ The app also links back to [CK42X](https://ck42x.com) from Settings, History, an
 
 Run VoiceRefine as an MCP server to give AI coding tools a `voice_capture` tool. Say what you want - the AI gets polished text without you typing.
 
-### Claude Code
+### Claude Code (CLI)
 
-Add to `.claude/mcp.json` in your project, or to `~/.claude/claude_desktop_config.json` for global access:
+The recommended way is the `claude mcp add` command. Run from your project directory for project scope, or with `-s user` for user-scope:
+
+```bash
+# Project scope (writes to .mcp.json in the project root)
+claude mcp add voicerefine python /path/to/voicerefine.py --mcp
+
+# User scope (works in every project)
+claude mcp add -s user voicerefine python /path/to/voicerefine.py --mcp
+```
+
+Or edit `.mcp.json` in your project root manually:
 
 ```json
 {
@@ -129,13 +139,19 @@ Add to `.claude/mcp.json` in your project, or to `~/.claude/claude_desktop_confi
 }
 ```
 
+> **Heads up:** `~/.claude/claude_desktop_config.json` is the Anthropic Desktop app's config, **not** Claude Code. Use `claude mcp add` or `.mcp.json` for the Claude Code CLI.
+
 Restart Claude Code. The following tools become available:
 
 | Tool | Description |
 |------|-------------|
-| `voice_capture` | Record for N seconds, transcribe, polish. Returns text. |
-| `voice_capture_until_silence` | Record until silence detected, transcribe, polish. |
-| `voice_polish_text` | Polish existing text through the configured prompt. No mic. |
+| `voice_capture` | Record for N seconds, transcribe, polish. Optional `preset` arg. Returns text. |
+| `voice_capture_until_silence` | Record until silence detected. Optional `preset`. |
+| `voice_polish_text` | Polish existing text. Accepts `prompt_override` or `preset`. No mic. |
+| `voice_polish_to_vault` | Polish + write the result to the configured Obsidian vault. |
+| `voice_replay_last` | Return the most recent capture (raw + polished) from local history. |
+| `voice_history_search` | Substring search across local capture history. |
+| `voice_list_presets` | List configured presets and their bound hotkeys. |
 
 ### Gemini CLI
 
