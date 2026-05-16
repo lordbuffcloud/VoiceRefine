@@ -26,6 +26,17 @@ try:
 except ImportError:
     HAS_TK = False
 
+# CustomTkinter UI modules (preferred). Fall back to legacy Tk surfaces if missing.
+try:
+    import customtkinter as _ctk_probe  # noqa: F401
+    from voicerefine_wizard import Wizard as _CtkWizard
+    from voicerefine_settings import SettingsWindow as _CtkSettings
+    HAS_CTK_UI = True
+except ImportError:
+    HAS_CTK_UI = False
+    _CtkWizard = None
+    _CtkSettings = None
+
 if getattr(sys, 'frozen', False):
     _RESOURCE_BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
     _CONFIG_BASE = Path(sys.executable).parent
@@ -343,72 +354,147 @@ class MultiHotkeyManager:
             self.listener.stop()
 
 class StatusOverlay:
+    """Pill-shaped floating status. Uses voicerefine_ui design tokens + animated waveform bars."""
     def __init__(self,config):
         self.config=config;self.root=None;self.label=None;self.canvas=None;self.dots_after=None
-        self.dot_count=0;self.level_bars=[];self.active=False
-        self._theme=THEMES.get(config.get("theme","dark"),THEMES["dark"])
+        self.dot_count=0;self._wf=None;self.active=False
+        try:
+            from voicerefine_ui import palette as _pal, font as _font, TOKENS as _TOK, WaveformBars as _WF
+            self._pal=_pal(config.get("theme","dark"));self._font=_font;self._TOK=_TOK;self._WF=_WF
+            self._USE_UI=True
+        except ImportError:
+            self._pal=THEMES.get(config.get("theme","dark"),THEMES["dark"])
+            self._font=lambda s=12,w="normal",family=None:(family or "Segoe UI", s, w)
+            class _T: space_2=8; space_3=12; space_4=16
+            self._TOK=_T(); self._WF=None; self._USE_UI=False
+        # Adapt theme keys: voicerefine_ui uses 'text','rec','done','thinking','error','surface','border'
+        # Old THEMES uses 'fg','recording','done','thinking','error','panel','border'
+        self._k_text   = "text"     if self._USE_UI else "fg"
+        self._k_bg     = "bg"
+        self._k_panel  = "surface"  if self._USE_UI else "panel"
+        self._k_border = "border"
+        self._k_rec    = "rec"      if self._USE_UI else "recording"
+        self._k_think  = "thinking"
+        self._k_done   = "done"
+        self._k_err    = "error"
+        self._k_subtle = "text_subtle" if self._USE_UI else "subtle"
+
     def _create_window(self):
         if self.root and self.root.winfo_exists(): return
         self.root=tk.Tk();self.root.withdraw();self.root.overrideredirect(True);self.root.attributes("-topmost",True)
-        try: self.root.attributes("-alpha",min(self.config.get("window_opacity",0.96),0.92))
-        except: pass
-        self.root.configure(bg=self._theme["bg"])
-        frame=tk.Frame(self.root,bg=self._theme["panel"],highlightbackground=self._theme["border"],highlightthickness=1,padx=18,pady=13)
-        frame.pack(fill="both",expand=True)
-        self.canvas=tk.Canvas(frame,width=16,height=16,bg=self._theme["panel"],highlightthickness=0)
-        self.canvas.pack(side="left",padx=(0,10))
-        self.label=tk.Label(frame,text="",fg=self._theme["fg"],bg=self._theme["panel"],font=("Segoe UI",11) if sys.platform=="win32" else ("Helvetica",12),anchor="w")
+        try: self.root.attributes("-alpha",min(self.config.get("window_opacity",0.96),0.94))
+        except Exception: pass
+        try: self.root.attributes("-toolwindow",True)
+        except Exception: pass
+        self.root.configure(bg=self._pal[self._k_bg if self._k_bg in self._pal else "bg"])
+        # Outer pill: a thick-bordered Frame with extra padding for a chip feel
+        outer=tk.Frame(self.root,bg=self._pal[self._k_panel],
+                       highlightbackground=self._pal[self._k_border],
+                       highlightthickness=1,bd=0)
+        outer.pack(fill="both",expand=True)
+        inner=tk.Frame(outer,bg=self._pal[self._k_panel],padx=self._TOK.space_4,pady=self._TOK.space_3)
+        inner.pack(fill="both",expand=True)
+        self.canvas=tk.Canvas(inner,width=18,height=18,bg=self._pal[self._k_panel],highlightthickness=0,bd=0)
+        self.canvas.pack(side="left",padx=(0,self._TOK.space_3))
+        self.label=tk.Label(inner,text="",fg=self._pal[self._k_text],bg=self._pal[self._k_panel],
+                            font=self._font(12,"bold") if sys.platform=="win32" else ("Helvetica",12,"bold"),anchor="w")
         self.label.pack(side="left",fill="x",expand=True)
-        self.level_frame=tk.Frame(frame,bg=self._theme["panel"]);self.level_frame.pack(side="right",padx=(10,0))
-        self.level_bars=[]
-        for i in range(5):
-            bar=tk.Frame(self.level_frame,width=4,height=4,bg=self._theme["border"]);bar.pack(side="left",padx=1);self.level_bars.append(bar)
+        self.wf_holder=tk.Frame(inner,bg=self._pal[self._k_panel])
+        self.wf_holder.pack(side="right",padx=(self._TOK.space_3,0))
+        if self._WF is not None:
+            self._wf=self._WF(self.wf_holder,theme=self.config.get("theme","dark"),
+                             bars=14,width=150,height=22,
+                             idle_color=self._pal[self._k_border],
+                             active_color=self._pal[self._k_rec])
+            self._wf.canvas.configure(bg=self._pal[self._k_panel])
+            self._wf.canvas.pack()
+
     def _position_window(self):
         if not self.root: return
-        pos=self.config.get("overlay_position","bottom-right");self.root.update_idletasks()
-        w=max(self.root.winfo_width(),300);h=self.root.winfo_height();sw=self.root.winfo_screenwidth();sh=self.root.winfo_screenheight();m=20
-        ps={"bottom-right":(sw-w-m,sh-h-m-50),"bottom-left":(m,sh-h-m-50),"top-right":(sw-w-m,m),"top-left":(m,m),"center":(sw//2-w//2,sh//2-h//2)}
-        x,y=ps.get(pos,ps["bottom-right"]);self.root.geometry(f"{w}x{h}+{x}+{y}")
+        pos=self.config.get("overlay_position","bottom-center");self.root.update_idletasks()
+        w=max(self.root.winfo_width(),360);h=self.root.winfo_height();sw=self.root.winfo_screenwidth();sh=self.root.winfo_screenheight();m=24
+        ps={
+            "bottom-right":(sw-w-m,sh-h-m-50),
+            "bottom-left":(m,sh-h-m-50),
+            "bottom-center":(sw//2-w//2,sh-h-m-50),
+            "top-right":(sw-w-m,m),
+            "top-left":(m,m),
+            "top-center":(sw//2-w//2,m),
+            "center":(sw//2-w//2,sh//2-h//2),
+        }
+        x,y=ps.get(pos,ps["bottom-center"])
+        self.root.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _state_color(self,state):
+        return {
+            "recording": self._pal[self._k_rec],
+            "thinking":  self._pal[self._k_think],
+            "done":      self._pal[self._k_done],
+            "error":     self._pal[self._k_err],
+        }.get(state,self._pal[self._k_text])
+
     def show(self,state,text="",level=0):
         if not self.config.get("show_overlay",True): return
         def _do():
-            self._create_window();color=self._theme.get(state,self._theme["fg"]);self.canvas.delete("all")
-            if state=="recording": self.canvas.create_oval(2,2,14,14,fill=color,outline="")
-            elif state=="thinking": self.canvas.create_oval(2,2,14,14,fill=color,outline="")
-            elif state=="done": self.canvas.create_line(3,8,7,12,fill=color,width=2);self.canvas.create_line(7,12,13,4,fill=color,width=2)
-            elif state=="error": self.canvas.create_line(3,3,13,13,fill=color,width=2);self.canvas.create_line(13,3,3,13,fill=color,width=2)
-            self.label.configure(text=text,fg=color)
+            self._create_window()
+            color=self._state_color(state)
+            self.canvas.delete("all")
             if state=="recording":
-                ab=int(level*5)
-                for i,bar in enumerate(self.level_bars): bar.configure(height=4+(i+1)*3,bg=color if i<ab else self._theme["border"])
-                self.level_frame.pack(side="right",padx=(10,0))
-            else: self.level_frame.pack_forget()
+                # Filled dot with subtle outer ring
+                self.canvas.create_oval(3,3,15,15,fill=color,outline="")
+                self.canvas.create_oval(1,1,17,17,outline=color,width=1)
+            elif state=="thinking":
+                self.canvas.create_oval(3,3,15,15,outline=color,width=2)
+                self.canvas.create_arc(3,3,15,15,start=0,extent=120,outline=color,style="arc",width=2)
+            elif state=="done":
+                self.canvas.create_oval(1,1,17,17,outline=color,width=1)
+                self.canvas.create_line(4,9,8,13,fill=color,width=2,capstyle="round")
+                self.canvas.create_line(8,13,14,5,fill=color,width=2,capstyle="round")
+            elif state=="error":
+                self.canvas.create_line(4,4,14,14,fill=color,width=2,capstyle="round")
+                self.canvas.create_line(14,4,4,14,fill=color,width=2,capstyle="round")
+            self.label.configure(text=text,fg=color)
+            if state=="recording" and self._wf is not None:
+                self._wf.set_level(level,"recording")
+                self.wf_holder.pack(side="right",padx=(self._TOK.space_3,0))
+            else:
+                if state!="recording" and self._wf is not None:
+                    self.wf_holder.pack_forget()
             self._position_window();self.root.deiconify();self.active=True
-            if self.dots_after: self.root.after_cancel(self.dots_after);self.dots_after=None
-            if state in("done","error"): self.dots_after=self.root.after(self.config.get("overlay_duration",3)*1000,self.hide)
+            if self.dots_after:
+                try: self.root.after_cancel(self.dots_after)
+                except Exception: pass
+                self.dots_after=None
+            if state in("done","error"):
+                self.dots_after=self.root.after(self.config.get("overlay_duration",3)*1000,self.hide)
         if self.root: self.root.after(0,_do)
         else: _do()
+
     def update_recording(self,duration,level):
         def _do():
             if not self.active or not self.label: return
-            self.label.configure(text=f"Recording... {duration:.1f}s")
-            ab=int(level*5);color=self._theme["recording"]
-            for i,bar in enumerate(self.level_bars): bar.configure(height=4+(i+1)*3,bg=color if i<=ab else self._theme["border"])
+            self.label.configure(text=f"Recording  {duration:.1f}s")
+            if self._wf is not None: self._wf.set_level(level,"recording")
         if self.root: self.root.after(0,_do)
+
     def animate_thinking(self):
         def _do():
             if not self.active or not self.label: return
-            self.dot_count=(self.dot_count+1)%4;self.label.configure(text=f"Refining{'.'*self.dot_count}")
-            self.dots_after=self.root.after(400,self.animate_thinking)
+            self.dot_count=(self.dot_count+1)%4
+            self.label.configure(text=f"Refining{'.'*self.dot_count}")
+            self.dots_after=self.root.after(360,self.animate_thinking)
         if self.root: self.root.after(0,_do)
+
     def hide(self):
         def _do():
             if self.root and self.root.winfo_exists(): self.root.withdraw()
             self.active=False
         if self.root: self.root.after(0,_do)
+
     def run_loop(self):
         if not HAS_TK: return
         self._create_window();self.root.withdraw();self.root.mainloop()
+
     def quit(self):
         if self.root: self.root.after(0,self.root.quit)
 
@@ -431,23 +517,72 @@ def create_tray_icon_image(color,size=64):
     except ImportError: return None
 
 class TrayIcon:
-    def __init__(self,on_settings,on_history,on_quit):
-        self.on_settings=on_settings;self.on_history=on_history;self.on_quit=on_quit;self.icon=None;self.running=False
+    """Rich tray icon — dynamic menu with last-capture preview, pause toggle, today stats."""
+    def __init__(self,on_settings,on_history,on_quit,
+                 on_pause_toggle=None,get_paused=None,
+                 get_last_preview=None,get_today_stats=None):
+        self.on_settings=on_settings;self.on_history=on_history;self.on_quit=on_quit
+        self.on_pause_toggle=on_pause_toggle or (lambda: None)
+        self.get_paused=get_paused or (lambda: False)
+        self.get_last_preview=get_last_preview or (lambda: "")
+        self.get_today_stats=get_today_stats or (lambda: (0,0))
+        self.icon=None;self.running=False;self._state="idle"
+
     def start(self):
         try:
             import pystray;from PIL import Image
         except ImportError: print("  [Tray] pystray/Pillow not installed.");return
         idle_img=create_tray_icon_image((100,100,100))
-        menu=pystray.Menu(pystray.MenuItem("Settings",lambda:self.on_settings()),pystray.MenuItem("History",lambda:self.on_history()),pystray.MenuItem("CK42X.com",lambda:open_url(CK42X_URL)),pystray.Menu.SEPARATOR,pystray.MenuItem("Quit",lambda:self.on_quit()))
-        self.icon=pystray.Icon("VoiceRefine",idle_img,"VoiceRefine - Idle",menu);self.running=True
+
+        def _menu_factory():
+            # Called every time the menu is opened — values are fresh.
+            preview=self.get_last_preview() or ""
+            if preview:
+                preview=(preview[:46] + ("…" if len(preview)>46 else ""))
+                preview_label=f"Last  ·  {preview}"
+            else:
+                preview_label="Last  ·  (no captures yet)"
+            paused=bool(self.get_paused())
+            captures,words=self.get_today_stats()
+            today_label=f"Today  ·  {captures} captures  ·  {words} words"
+            return pystray.Menu(
+                pystray.MenuItem(preview_label, None, enabled=False),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Resume hotkeys" if paused else "Pause hotkeys",
+                    lambda: self.on_pause_toggle()
+                ),
+                pystray.MenuItem("Settings", lambda: self.on_settings()),
+                pystray.MenuItem("History", lambda: self.on_history()),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(today_label, None, enabled=False),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("CK42X.com", lambda: open_url(CK42X_URL)),
+                pystray.MenuItem("Quit", lambda: self.on_quit()),
+            )
+
+        self.icon=pystray.Icon("VoiceRefine",idle_img,"VoiceRefine — Ready",menu=_menu_factory)
+        self.running=True
         threading.Thread(target=self.icon.run,daemon=True).start()
+
     def set_state(self,state):
         if not self.icon: return
-        cs={"idle":(100,100,100),"recording":(233,69,96),"thinking":(245,166,35),"done":(78,204,163),"error":(255,107,107)}
-        ts={"idle":"VoiceRefine - Ready","recording":"VoiceRefine - Recording...","thinking":"VoiceRefine - Refining...","done":"VoiceRefine - Copied!","error":"VoiceRefine - Error"}
+        self._state=state
+        cs={"idle":(100,100,100),"recording":(233,69,96),"thinking":(255,179,0),
+            "done":(78,204,163),"error":(255,107,107),"paused":(140,140,148)}
+        ts={"idle":"VoiceRefine — Ready","recording":"VoiceRefine — Recording…",
+            "thinking":"VoiceRefine — Refining…","done":"VoiceRefine — Copied!",
+            "error":"VoiceRefine — Error","paused":"VoiceRefine — Paused"}
         img=create_tray_icon_image(cs.get(state,cs["idle"]))
         if img: self.icon.icon=img
         self.icon.title=ts.get(state,ts["idle"])
+
+    def refresh_menu(self):
+        """Force pystray to re-evaluate the menu factory."""
+        try:
+            if self.icon: self.icon.update_menu()
+        except Exception: pass
+
     def stop(self):
         if self.icon: self.icon.stop()
 
@@ -740,17 +875,21 @@ class VoiceRefine:
     def __init__(self):
         self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"))
         self.processor=None;self.hotkey_mgr=None;self.overlay=None;self.tray=None;self.processing=False
+        self._paused=False
         try: self.processor=VoiceProcessor(self.config)
         except ValueError as e:
-            print(f"\n{'='*60}\n  SETUP NEEDED: {e}\n  Opening the VoiceRefine setup window.\n{'='*60}\n")
-            if HAS_TK:
-                saved={"value":False}
-                def after_save(cfg):
-                    self.config=cfg;saved["value"]=has_api_key(cfg)
+            print(f"\n{'='*60}\n  SETUP NEEDED: {e}\n  Opening the VoiceRefine setup wizard.\n{'='*60}\n")
+            saved={"value":False}
+            def after_save(cfg):
+                save_config(cfg);self.config=cfg;saved["value"]=has_api_key(cfg)
+            if HAS_CTK_UI and _CtkWizard is not None:
+                _CtkWizard(self.config, on_complete=after_save, icon_path=APP_ICON_PATH,
+                           theme=self.config.get("theme","dark")).run()
+            elif HAS_TK:
                 SettingsWindow(self.config,after_save,first_run=True).show()
                 tk.mainloop()
-                if saved["value"]:
-                    self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"));self.processor=VoiceProcessor(self.config);return
+            if saved["value"]:
+                self.config=load_config();self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"));self.processor=VoiceProcessor(self.config);return
             sys.exit(0)
     def _on_hotkey_press(self,preset_name="default"):
         if self.processing: return
@@ -807,6 +946,9 @@ class VoiceRefine:
             history.append({"timestamp":datetime.datetime.now().isoformat(timespec="seconds"),"raw":raw_text,"improved":improved,"duration":round(duration,1),"model":self.config.get("model","gpt-4o-mini"),"preset":preset_name})
             if len(history)>self.config.get("max_history",100): history=history[-self.config.get("max_history",100):]
             save_history(history)
+            if self.tray:
+                try: self.tray.refresh_menu()
+                except Exception: pass
             # Vault write (best-effort, never blocks the user flow)
             if self.config.get("vault_enabled") and self.config.get("vault_path"):
                 try:
@@ -834,10 +976,27 @@ class VoiceRefine:
         finally: self.processing=False
     def _open_settings(self):
         def apply_config(c):
-            self.config=c;self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"))
-        sw=SettingsWindow(self.config,apply_config)
-        if self.overlay and self.overlay.root: self.overlay.root.after(0,sw.show)
-        else: sw.show()
+            save_config(c)
+            self.config=c
+            self.recorder=AudioRecorder(self.config.get("sample_rate",16000),self.config.get("input_device"))
+            # Rebuild processor in case API key/backend changed
+            try: self.processor=VoiceProcessor(self.config)
+            except Exception as e: print(f"  [settings] processor reload failed: {e}")
+            # Reload hotkeys
+            if self.hotkey_mgr:
+                try: self.hotkey_mgr.stop()
+                except Exception: pass
+                hotkey_map=dict(self.config.get("preset_hotkeys") or {}) or {self.config.get("hotkey","<cmd>+<alt>"):"default"}
+                self.hotkey_mgr=MultiHotkeyManager(hotkey_map,self._on_hotkey_press,self._on_hotkey_release)
+                self.hotkey_mgr.start()
+        def _open():
+            if HAS_CTK_UI and _CtkSettings is not None:
+                _CtkSettings(self.config, on_save=apply_config, icon_path=APP_ICON_PATH,
+                             theme=self.config.get("theme","dark"), app_version=APP_VERSION).show()
+            else:
+                SettingsWindow(self.config,apply_config).show()
+        if self.overlay and self.overlay.root: self.overlay.root.after(0,_open)
+        else: _open()
     def _open_history(self):
         hw=HistoryWindow(self.config)
         if self.overlay and self.overlay.root: self.overlay.root.after(0,hw.show)
@@ -856,7 +1015,14 @@ class VoiceRefine:
             print(f"   {hk:<32} -> {preset}")
         print(" Hold a hotkey to record, release to process. Right-click tray for settings.\n")
         self.overlay=StatusOverlay(self.config)
-        self.tray=TrayIcon(self._open_settings,self._open_history,self._quit);self.tray.start()
+        self.tray=TrayIcon(
+            self._open_settings,self._open_history,self._quit,
+            on_pause_toggle=self._toggle_pause,
+            get_paused=lambda: self._paused,
+            get_last_preview=self._get_last_preview,
+            get_today_stats=self._get_today_stats,
+        )
+        self.tray.start()
         self.hotkey_mgr=MultiHotkeyManager(hotkey_map,self._on_hotkey_press,self._on_hotkey_release);self.hotkey_mgr.start()
         try: self.overlay.run_loop()
         except KeyboardInterrupt: self._quit()
@@ -866,6 +1032,41 @@ class VoiceRefine:
         if self.tray: self.tray.stop()
         if self.overlay: self.overlay.quit()
         sys.exit(0)
+
+    def _toggle_pause(self):
+        self._paused = not self._paused
+        if self._paused:
+            if self.hotkey_mgr:
+                try: self.hotkey_mgr.stop()
+                except Exception: pass
+            if self.tray: self.tray.set_state("paused")
+            if self.overlay: self.overlay.show("error","Hotkeys paused — tap tray to resume")
+        else:
+            hotkey_map=dict(self.config.get("preset_hotkeys") or {}) or {self.config.get("hotkey","<cmd>+<alt>"):"default"}
+            self.hotkey_mgr=MultiHotkeyManager(hotkey_map,self._on_hotkey_press,self._on_hotkey_release)
+            self.hotkey_mgr.start()
+            if self.tray: self.tray.set_state("idle")
+            if self.overlay: self.overlay.show("done","Hotkeys resumed")
+        if self.tray: self.tray.refresh_menu()
+
+    def _get_last_preview(self):
+        try:
+            h=load_history()
+            return (h[-1].get("improved") or "") if h else ""
+        except Exception: return ""
+
+    def _get_today_stats(self):
+        try:
+            h=load_history()
+            today=datetime.date.today().isoformat()
+            captures=0; words=0
+            for e in h:
+                ts=(e.get("timestamp") or "")
+                if ts.startswith(today):
+                    captures+=1
+                    words+=len((e.get("improved") or "").split())
+            return (captures,words)
+        except Exception: return (0,0)
 
 if __name__=="__main__":
     if "--mcp" in sys.argv:
@@ -933,8 +1134,13 @@ if __name__=="__main__":
 
         asyncio.run(run_stream())
     elif len(sys.argv)>1 and sys.argv[1]=="--settings":
-        config=load_config();SettingsWindow(config,None).show()
-        if HAS_TK: tk.mainloop()
+        config=load_config()
+        if HAS_CTK_UI and _CtkSettings is not None:
+            _CtkSettings(config, on_save=save_config, icon_path=APP_ICON_PATH,
+                         theme=config.get("theme","dark"), app_version=APP_VERSION).show()
+        elif HAS_TK:
+            SettingsWindow(config,save_config).show()
+            tk.mainloop()
     elif len(sys.argv)>1 and sys.argv[1]=="--history":
         config=load_config();HistoryWindow(config).show()
         if HAS_TK: tk.mainloop()

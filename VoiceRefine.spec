@@ -6,11 +6,11 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('branding\\app-icon.ico', 'branding')],
-    hiddenimports=['voicerefine_mcp'],
+    hiddenimports=['voicerefine_mcp', 'voicerefine_vault', 'voicerefine_local_whisper', 'voicerefine_ui', 'voicerefine_wizard', 'voicerefine_settings'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['torch', 'sklearn', 'transformers', 'scipy', 'matplotlib', 'pandas', 'pytest', 'setuptools'],
+    excludes=['torch', 'sklearn', 'transformers', 'scipy', 'matplotlib', 'pandas', 'pytest', 'setuptools', 'faster_whisper', 'ctranslate2'],
     noarchive=False,
     optimize=0,
 )
