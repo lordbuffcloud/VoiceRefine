@@ -534,34 +534,35 @@ class TrayIcon:
         except ImportError: print("  [Tray] pystray/Pillow not installed.");return
         idle_img=create_tray_icon_image((100,100,100))
 
-        def _menu_factory():
-            # Called every time the menu is opened — values are fresh.
-            preview=self.get_last_preview() or ""
-            if preview:
-                preview=(preview[:46] + ("…" if len(preview)>46 else ""))
-                preview_label=f"Last  ·  {preview}"
-            else:
-                preview_label="Last  ·  (no captures yet)"
-            paused=bool(self.get_paused())
-            captures,words=self.get_today_stats()
-            today_label=f"Today  ·  {captures} captures  ·  {words} words"
-            return pystray.Menu(
-                pystray.MenuItem(preview_label, None, enabled=False),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(
-                    "Resume hotkeys" if paused else "Pause hotkeys",
-                    lambda: self.on_pause_toggle()
-                ),
-                pystray.MenuItem("Settings", lambda: self.on_settings()),
-                pystray.MenuItem("History", lambda: self.on_history()),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(today_label, None, enabled=False),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("CK42X.com", lambda: open_url(CK42X_URL)),
-                pystray.MenuItem("Quit", lambda: self.on_quit()),
-            )
+        # pystray re-evaluates callable item attributes each time the menu is shown.
+        def _preview_text(item):
+            p=(self.get_last_preview() or "")
+            if p:
+                p=p[:46]+("…" if len(p)>46 else "")
+                return f"Last  ·  {p}"
+            return "Last  ·  (no captures yet)"
 
-        self.icon=pystray.Icon("VoiceRefine",idle_img,"VoiceRefine — Ready",menu=_menu_factory)
+        def _today_text(item):
+            c,w=self.get_today_stats()
+            return f"Today  ·  {c} captures  ·  {w} words"
+
+        def _pause_text(item):
+            return "Resume hotkeys" if bool(self.get_paused()) else "Pause hotkeys"
+
+        menu=pystray.Menu(
+            pystray.MenuItem(_preview_text, None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(_pause_text, lambda icon, item: self.on_pause_toggle()),
+            pystray.MenuItem("Settings",   lambda icon, item: self.on_settings()),
+            pystray.MenuItem("History",    lambda icon, item: self.on_history()),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(_today_text, None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("CK42X.com", lambda icon, item: open_url(CK42X_URL)),
+            pystray.MenuItem("Quit",      lambda icon, item: self.on_quit()),
+        )
+
+        self.icon=pystray.Icon("VoiceRefine",idle_img,"VoiceRefine — Ready",menu=menu)
         self.running=True
         threading.Thread(target=self.icon.run,daemon=True).start()
 
