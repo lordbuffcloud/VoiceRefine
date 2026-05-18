@@ -369,11 +369,20 @@ class WaveformBars:
     """Animated bar visualizer for live RMS level. Renders into a host frame."""
     @staticmethod
     def _resolve_master_bg(master, fallback):
-        # Try CTk widget first, then tk widget, finally fall back to a known color.
+        # Raw Tk canvases need a real color, not CTk's transparent sentinel.
+        current = master
+        while current is not None:
+            bg = WaveformBars._widget_bg(current)
+            if bg and str(bg).lower() != "transparent":
+                return bg
+            current = getattr(current, "master", None)
+        return fallback
+
+    @staticmethod
+    def _widget_bg(widget):
         try:
-            fg = master.cget("fg_color")
+            fg = widget.cget("fg_color")
             if isinstance(fg, (list, tuple)):
-                # CTk theme tuple: (light, dark)
                 if HAS_CTK:
                     try:
                         return fg[1] if ctk.get_appearance_mode() == "Dark" else fg[0]
@@ -384,9 +393,9 @@ class WaveformBars:
         except tk.TclError:
             pass
         try:
-            return master.cget("bg")
+            return widget.cget("bg")
         except Exception:
-            return fallback
+            return None
 
     def __init__(self, master, theme="dark", bars=12, width=160, height=36, idle_color=None, active_color=None):
         self._c = palette(theme)
