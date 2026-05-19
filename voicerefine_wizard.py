@@ -31,7 +31,7 @@ import numpy as np
 import sounddevice as sd
 
 from voicerefine_ui import (
-    TOKENS, COLORS, palette, font, apply_theme,
+    TOKENS, COLORS, palette, font, apply_theme, resolve_tk_bg,
     Card, SectionHeader, Hint, ChordCaptureButton, WaveformBars, StepIndicator,
 )
 
@@ -430,7 +430,8 @@ class Wizard:
         body = card.body
         # Big checkmark via canvas
         check = tk.Canvas(body, width=64, height=64,
-                          bg=c["surface"], highlightthickness=0, bd=0)
+                          bg=resolve_tk_bg(body, c["surface"]),
+                          highlightthickness=0, bd=0)
         check.pack(anchor="w", pady=(0, TOKENS.space_3))
         check.create_oval(4, 4, 60, 60, outline=c["ok"], width=3)
         check.create_line(18, 33, 28, 43, fill=c["ok"], width=3, capstyle="round")

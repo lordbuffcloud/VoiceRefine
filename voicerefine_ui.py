@@ -8,6 +8,7 @@ Public surface:
   - TOKENS         : design tokens (spacing, radii, type, motion)
   - COLORS         : dark/light palettes
   - apply_theme()  : configure CustomTkinter globals
+  - resolve_tk_bg(): concrete Tk bg from CTk/tk widget ancestry
   - Card           : rounded panel container with optional title + subtitle
   - SectionHeader  : H2-style heading inside a Card
   - Hint           : subtle helper text
@@ -143,6 +144,53 @@ def apply_theme(theme="dark"):
 
 def palette(theme="dark"):
     return COLORS.get(theme, COLORS["dark"])
+
+
+def _is_real_tk_color(value) -> bool:
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    return text not in ("", "transparent", "none")
+
+
+def _pick_ctk_fg_color(raw):
+    """Return the first CTk fg_color value that raw Tk widgets can use."""
+    if isinstance(raw, (list, tuple)):
+        candidates = list(raw)
+        if HAS_CTK:
+            try:
+                mode_idx = 1 if ctk.get_appearance_mode() == "Dark" else 0
+                preferred = candidates[mode_idx] if mode_idx < len(candidates) else candidates[-1]
+                candidates = [preferred, *candidates]
+            except Exception:
+                pass
+        for candidate in candidates:
+            if _is_real_tk_color(candidate):
+                return candidate
+        return None
+    return raw if _is_real_tk_color(raw) else None
+
+
+def resolve_tk_bg(widget, fallback):
+    """Resolve a concrete Tk background color from CTk/tk widget ancestry."""
+    current = widget
+    while current is not None:
+        try:
+            color = _pick_ctk_fg_color(current.cget("fg_color"))
+            if color:
+                return color
+        except tk.TclError:
+            pass
+        try:
+            color = current.cget("bg")
+            if _is_real_tk_color(color):
+                return color
+        except Exception:
+            pass
+        current = getattr(current, "master", None)
+    if _is_real_tk_color(fallback):
+        return fallback
+    return COLORS["dark"]["bg"]
 
 
 # ---------------------------------------------------------------------------
@@ -367,35 +415,7 @@ class ChordCaptureButton(ctk.CTkButton if HAS_CTK else tk.Button):
 
 class WaveformBars:
     """Animated bar visualizer for live RMS level. Renders into a host frame."""
-    @staticmethod
-    def _resolve_master_bg(master, fallback):
-        # Raw Tk canvases need a real color, not CTk's transparent sentinel.
-        current = master
-        while current is not None:
-            bg = WaveformBars._widget_bg(current)
-            if bg and str(bg).lower() != "transparent":
-                return bg
-            current = getattr(current, "master", None)
-        return fallback
-
-    @staticmethod
-    def _widget_bg(widget):
-        try:
-            fg = widget.cget("fg_color")
-            if isinstance(fg, (list, tuple)):
-                if HAS_CTK:
-                    try:
-                        return fg[1] if ctk.get_appearance_mode() == "Dark" else fg[0]
-                    except Exception:
-                        return fg[-1]
-                return fg[-1]
-            return fg
-        except tk.TclError:
-            pass
-        try:
-            return widget.cget("bg")
-        except Exception:
-            return None
+    _resolve_master_bg = staticmethod(resolve_tk_bg)
 
     def __init__(self, master, theme="dark", bars=12, width=160, height=36, idle_color=None, active_color=None):
         self._c = palette(theme)
@@ -404,7 +424,7 @@ class WaveformBars:
         self._h = height
         self._idle = idle_color or self._c["border"]
         self._active = active_color or self._c["accent"]
-        bg = self._resolve_master_bg(master, self._c["surface"])
+        bg = resolve_tk_bg(master, self._c["surface"])
         self.canvas = tk.Canvas(master, width=width, height=height, bg=bg,
                                 highlightthickness=0, bd=0)
         self._rects = []
@@ -448,7 +468,7 @@ class StepIndicator:
         self._steps = steps
         self._current = current
         self.frame = ctk.CTkFrame(master, fg_color="transparent") if HAS_CTK else tk.Frame(master, bg=c["bg"])
-        bg = WaveformBars._resolve_master_bg(master, c["bg"])
+        bg = resolve_tk_bg(self.frame, c["bg"])
         self._dots = []
         for i in range(steps):
             d = tk.Canvas(self.frame, width=14, height=14, bg=bg,
