@@ -50,7 +50,7 @@ else:
 CONFIG_PATH = _CONFIG_BASE / "config.json"
 HISTORY_PATH = _CONFIG_BASE / "history.json"
 APP_NAME = "VoiceRefine"
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.2.1"
 CK42X_URL = "https://ck42x.com"
 OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
 APP_ICON_PATH = _RESOURCE_BASE / "branding" / "app-icon.ico"

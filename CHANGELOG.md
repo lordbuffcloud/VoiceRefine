@@ -4,6 +4,15 @@ All notable changes to VoiceRefine are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] - 2026-05-20
+
+### Fixed
+
+- First-run setup wizard crash when no OpenAI API key is configured and
+  a raw Tk canvas is nested under transparent CustomTkinter containers.
+- Declared `customtkinter` as an explicit runtime dependency so source
+  installs match the UI used by the packaged release.
+
 ## [2.2.0] - 2026-05-16
 
 The "awesomer + UI rewrite" release. Named presets, vault writes, local
@@ -103,6 +112,7 @@ vault_category        string   subfolder under 11-Data/
   GPT polish, clipboard delivery, system tray, floating overlay, history
   viewer, MCP server (3 tools), WebSocket stream mode, dark/light themes.
 
+[2.2.1]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.2.1
 [2.2.0]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.2.0
 [2.1.1]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.1.1
 [2.1.0]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.1.0
