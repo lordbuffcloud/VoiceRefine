@@ -34,6 +34,7 @@
 - **First-run wizard.** Guided setup — paste key, test mic with live waveform, bind a hotkey by pressing it.
 - **Sidebar Settings.** Modern seven-section UI (General / Polish / Hotkeys / Audio / Vault / Backend / About).
 - **Rich tray menu.** Live preview of the last capture, pause/resume hotkeys, today's capture count and word count.
+- **Automatic updates.** Packaged Windows builds check GitHub Releases in the background and can install the latest build from Settings.
 - **Floating overlay.** Pill-style chip with animated waveform during recording. Configurable position.
 - **History viewer.** Browse, search, and re-copy past transcriptions from the tray menu.
 - **Optional vault writes.** Mirror each capture into an Obsidian vault under `11-Data/<category>/YYYY/MM/<id>.json + .md`.
@@ -103,6 +104,10 @@ Tabs: **API** (key, GPT model, Whisper model), **Prompt** (system prompt + prese
 
 Settings are saved to `config.json` next to the executable.
 The app also links back to [CK42X](https://ck42x.com) from Settings, History, and the tray menu.
+
+### Updates
+
+Packaged Windows builds check the latest [GitHub Release](https://github.com/lordbuffcloud/VoiceRefine/releases/latest) automatically. Open **Settings > About > Check for updates** to check immediately and install the newest packaged build.
 
 ### Flags
 

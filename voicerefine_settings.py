@@ -542,6 +542,39 @@ class SettingsWindow:
         status = "✓ faster-whisper is installed." if ok else "✗ faster-whisper is NOT installed. Run: pip install faster-whisper"
         Hint(b, status, theme=self._theme).widget.pack(anchor="w", pady=(TOKENS.space_2, 0))
 
+    def _manual_update_check(self):
+        status = getattr(self, "_update_status_var", None)
+        if status: status.set("Checking GitHub releases...")
+        def worker():
+            try:
+                from voicerefine_update import check_download_and_install, check_for_update, can_self_install, RELEASES_URL
+                current = self._app_version or "0.0.0"
+                if can_self_install():
+                    info = check_download_and_install(current)
+                else:
+                    info = check_for_update(current)
+                    info["install_scheduled"] = False
+                    info["skipped_reason"] = "not-packaged-windows-exe"
+                def finish():
+                    latest = info.get("latest_version") or "unknown"
+                    if not info.get("update_available"):
+                        if status: status.set(f"VoiceRefine is current. Latest: v{latest}.")
+                        return
+                    if info.get("install_scheduled"):
+                        if status: status.set(f"Downloaded v{latest}. Closing VoiceRefine to finish install...")
+                        messagebox.showinfo("VoiceRefine update", f"VoiceRefine v{latest} was downloaded. The app will close and restart to finish installing.")
+                        os._exit(0)
+                    reason = info.get("skipped_reason") or "manual-install-required"
+                    if status: status.set(f"v{latest} is available. Opening releases page ({reason}).")
+                    webbrowser.open_new_tab(info.get("release_url") or RELEASES_URL)
+                if self.root: self.root.after(0, finish)
+            except Exception as e:
+                def fail():
+                    if status: status.set(f"Update check failed: {str(e)[:120]}")
+                    messagebox.showerror("VoiceRefine update", f"Update check failed:\n{e}")
+                if self.root: self.root.after(0, fail)
+        threading.Thread(target=worker, daemon=True).start()
+
     def _render_about(self, parent):
         c = self._c
         card = Card(parent, title="About VoiceRefine",
@@ -560,6 +593,10 @@ class SettingsWindow:
             ctk.CTkLabel(r, text=val, text_color=c["text"], font=font(TOKENS.text_md),
                          anchor="w").pack(side="left")
         actions = ctk.CTkFrame(b, fg_color="transparent"); actions.pack(fill="x", pady=(TOKENS.space_3, 0))
+        ctk.CTkButton(actions, text="Check for updates", height=36,
+                      fg_color=c["accent"], hover_color=c["accent_hi"],
+                      text_color=c["on_accent"], border_width=0,
+                      command=self._manual_update_check).pack(side="left", padx=(0, TOKENS.space_2))
         ctk.CTkButton(actions, text="Open CK42X.com", height=36,
                       fg_color=c["surface_2"], hover_color=c["surface_3"],
                       text_color=c["text"], border_width=1, border_color=c["border"],
@@ -568,6 +605,11 @@ class SettingsWindow:
                       fg_color=c["surface_2"], hover_color=c["surface_3"],
                       text_color=c["text"], border_width=1, border_color=c["border"],
                       command=lambda: webbrowser.open_new_tab("https://github.com/lordbuffcloud/VoiceRefine")).pack(side="left")
+        self._update_status_var = tk.StringVar(value="Automatic update checks run in the packaged Windows app.")
+        Hint(b, "Auto-update checks GitHub Releases in the background. Use the button above to check and install immediately.",
+             theme=self._theme).widget.pack(anchor="w", pady=(TOKENS.space_3, 0))
+        ctk.CTkLabel(b, textvariable=self._update_status_var, text_color=c["text_subtle"],
+                     font=font(TOKENS.text_sm), anchor="w", wraplength=620).pack(anchor="w", pady=(TOKENS.space_1, 0))
 
     # --------------------------------------------------------- save / close
     def _save(self):

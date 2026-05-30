@@ -4,6 +4,23 @@ All notable changes to VoiceRefine are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-05-30
+
+### Added
+
+- Automatic packaged Windows update checks against GitHub Releases, with a
+  Settings → About button to check and install immediately.
+- Dedicated Windows AppUserModelID and regenerated multi-size `.ico` so the
+  taskbar uses the VoiceRefine app icon consistently.
+
+### Changed
+
+- The app icon uses bolder small-size geometry for better 16-32px taskbar
+  readability.
+- GPT polish prompts now wrap transcripts with explicit rewrite-only
+  instructions so transcribed questions or commands are rewritten instead of
+  answered.
+
 ## [2.2.1] - 2026-05-20
 
 ### Fixed
@@ -112,6 +129,7 @@ vault_category        string   subfolder under 11-Data/
   GPT polish, clipboard delivery, system tray, floating overlay, history
   viewer, MCP server (3 tools), WebSocket stream mode, dark/light themes.
 
+[2.3.0]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.3.0
 [2.2.1]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.2.1
 [2.2.0]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.2.0
 [2.1.1]: https://github.com/lordbuffcloud/VoiceRefine/releases/tag/v2.1.1
